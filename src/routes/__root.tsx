@@ -77,19 +77,28 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
     meta: [
       { charSet: "utf-8" },
       { name: "viewport", content: "width=device-width, initial-scale=1" },
-      { title: "Lovable App" },
-      { name: "description", content: "Lovable Generated Project" },
-      { name: "author", content: "Lovable" },
-      { property: "og:title", content: "Lovable App" },
-      { property: "og:description", content: "Lovable Generated Project" },
+      { title: "阿新个人健身工作室 — 在线约课" },
+      {
+        name: "description",
+        content:
+          "AXI STUDIO 阿新的个人健身工作室。私教器械、团操、有氧 Cardio、中高考应试。营业时间 10:00–20:00，在线即时预约。",
+      },
+      { name: "author", content: "AXI STUDIO" },
+      { property: "og:title", content: "阿新个人健身工作室 — 在线约课" },
+      {
+        property: "og:description",
+        content: "AXI STUDIO 阿新的个人健身工作室。在线即时预约你的下一节训练课。",
+      },
       { property: "og:type", content: "website" },
       { name: "twitter:card", content: "summary" },
-      { name: "twitter:site", content: "@Lovable" },
     ],
     links: [
+      { rel: "stylesheet", href: appCss },
+      { rel: "preconnect", href: "https://fonts.googleapis.com" },
+      { rel: "preconnect", href: "https://fonts.gstatic.com", crossOrigin: "anonymous" },
       {
         rel: "stylesheet",
-        href: appCss,
+        href: "https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=Space+Grotesk:wght@500;600;700&display=swap",
       },
     ],
   }),
