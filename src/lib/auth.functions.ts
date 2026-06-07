@@ -1,5 +1,6 @@
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
+import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 
 const PhoneSchema = z.string().regex(/^1[3-9]\d{9}$/, "请输入有效的中国手机号");
 const phoneToEmail = (phone: string) => `${phone}@phone.axinstudio.local`;
@@ -113,7 +114,7 @@ export const verifyOtp = createServerFn({ method: "POST" })
  * user to admin. After the first admin is created, this fails permanently.
  */
 export const claimAdminIfUnclaimed = createServerFn({ method: "POST" })
-  .middleware([(await import("@/integrations/supabase/auth-middleware")).requireSupabaseAuth])
+  .middleware([requireSupabaseAuth])
   .handler(async ({ context }) => {
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     const { count, error: cErr } = await supabaseAdmin
