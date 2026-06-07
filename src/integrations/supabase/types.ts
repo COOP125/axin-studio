@@ -21,9 +21,11 @@ export type Database = {
           customer_name: string
           customer_phone: string
           id: string
+          is_trial: boolean
           note: string | null
           slot_date: string
           slot_hour: number
+          user_id: string | null
         }
         Insert: {
           course_type: Database["public"]["Enums"]["course_type"]
@@ -31,9 +33,11 @@ export type Database = {
           customer_name: string
           customer_phone: string
           id?: string
+          is_trial?: boolean
           note?: string | null
           slot_date: string
           slot_hour: number
+          user_id?: string | null
         }
         Update: {
           course_type?: Database["public"]["Enums"]["course_type"]
@@ -41,9 +45,176 @@ export type Database = {
           customer_name?: string
           customer_phone?: string
           id?: string
+          is_trial?: boolean
           note?: string | null
           slot_date?: string
           slot_hour?: number
+          user_id?: string | null
+        }
+        Relationships: []
+      }
+      credit_transactions: {
+        Row: {
+          course_type: Database["public"]["Enums"]["course_type"]
+          created_at: string
+          delta: number
+          id: string
+          operator_id: string | null
+          reason: string
+          user_id: string
+        }
+        Insert: {
+          course_type: Database["public"]["Enums"]["course_type"]
+          created_at?: string
+          delta: number
+          id?: string
+          operator_id?: string | null
+          reason: string
+          user_id: string
+        }
+        Update: {
+          course_type?: Database["public"]["Enums"]["course_type"]
+          created_at?: string
+          delta?: number
+          id?: string
+          operator_id?: string | null
+          reason?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
+      member_credits: {
+        Row: {
+          course_type: Database["public"]["Enums"]["course_type"]
+          remaining: number
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          course_type: Database["public"]["Enums"]["course_type"]
+          remaining?: number
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          course_type?: Database["public"]["Enums"]["course_type"]
+          remaining?: number
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
+      phone_otp: {
+        Row: {
+          attempts: number
+          code: string
+          consumed_at: string | null
+          created_at: string
+          expires_at: string
+          id: string
+          phone: string
+        }
+        Insert: {
+          attempts?: number
+          code: string
+          consumed_at?: string | null
+          created_at?: string
+          expires_at: string
+          id?: string
+          phone: string
+        }
+        Update: {
+          attempts?: number
+          code?: string
+          consumed_at?: string | null
+          created_at?: string
+          expires_at?: string
+          id?: string
+          phone?: string
+        }
+        Relationships: []
+      }
+      profiles: {
+        Row: {
+          created_at: string
+          display_name: string | null
+          phone: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          display_name?: string | null
+          phone: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          display_name?: string | null
+          phone?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
+      purchase_requests: {
+        Row: {
+          course_type: Database["public"]["Enums"]["course_type"]
+          created_at: string
+          id: string
+          note: string | null
+          quantity: number
+          resolved_at: string | null
+          resolved_by: string | null
+          status: string
+          unit_price: number
+          user_id: string
+        }
+        Insert: {
+          course_type: Database["public"]["Enums"]["course_type"]
+          created_at?: string
+          id?: string
+          note?: string | null
+          quantity: number
+          resolved_at?: string | null
+          resolved_by?: string | null
+          status?: string
+          unit_price: number
+          user_id: string
+        }
+        Update: {
+          course_type?: Database["public"]["Enums"]["course_type"]
+          created_at?: string
+          id?: string
+          note?: string | null
+          quantity?: number
+          resolved_at?: string | null
+          resolved_by?: string | null
+          status?: string
+          unit_price?: number
+          user_id?: string
+        }
+        Relationships: []
+      }
+      user_roles: {
+        Row: {
+          created_at: string
+          id: string
+          role: Database["public"]["Enums"]["app_role"]
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          role: Database["public"]["Enums"]["app_role"]
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          role?: Database["public"]["Enums"]["app_role"]
+          user_id?: string
         }
         Relationships: []
       }
@@ -64,8 +235,16 @@ export type Database = {
           slot_hour: number
         }[]
       }
+      has_role: {
+        Args: {
+          _role: Database["public"]["Enums"]["app_role"]
+          _user_id: string
+        }
+        Returns: boolean
+      }
     }
     Enums: {
+      app_role: "admin" | "member"
       course_type: "private" | "student" | "group" | "cardio"
     }
     CompositeTypes: {
@@ -194,6 +373,7 @@ export type CompositeTypes<
 export const Constants = {
   public: {
     Enums: {
+      app_role: ["admin", "member"],
       course_type: ["private", "student", "group", "cardio"],
     },
   },
