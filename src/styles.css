@@ -97,3 +97,22 @@
     color: var(--color-brand-foreground);
   }
 }
+
+@utility input {
+  width: 100%;
+  background-color: oklch(1 0 0 / 0.04);
+  border-bottom: 1px solid var(--color-border);
+  padding: 0.75rem 0.25rem;
+  font-size: 0.875rem;
+  color: var(--color-foreground);
+  outline: none;
+  transition: border-color 150ms;
+}
+@utility input {
+  &:focus {
+    border-color: var(--color-brand);
+  }
+  &::placeholder {
+    color: var(--color-muted-foreground);
+  }
+}
