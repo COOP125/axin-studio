@@ -131,10 +131,15 @@ export const adminListPurchaseRequests = createServerFn({ method: "GET" })
     const admin = await assertAdmin(context.userId);
     const { data, error } = await admin
       .from("purchase_requests")
-      .select("*, profiles!inner(phone, display_name)")
+      .select("*")
       .order("created_at", { ascending: false });
     if (error) throw new Error(error.message);
-    return data ?? [];
+    const ids = Array.from(new Set((data ?? []).map((r) => r.user_id)));
+    const profiles = ids.length
+      ? (await admin.from("profiles").select("user_id, phone, display_name").in("user_id", ids)).data ?? []
+      : [];
+    const pMap = new Map(profiles.map((p) => [p.user_id, p]));
+    return (data ?? []).map((r) => ({ ...r, profile: pMap.get(r.user_id) ?? null }));
   });
 
 export const adminResolvePurchase = createServerFn({ method: "POST" })

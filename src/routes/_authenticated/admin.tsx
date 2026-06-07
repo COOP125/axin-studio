@@ -222,8 +222,8 @@ function PurchasesTab() {
           <li key={r.id} className="flex flex-wrap items-center justify-between gap-3 border border-white/10 bg-card p-4">
             <div>
               <p className="text-sm font-semibold">
-                {(r as { profiles?: { display_name?: string; phone: string } }).profiles?.display_name ?? "—"}
-                <span className="ml-2 font-mono text-xs text-muted-foreground">{(r as { profiles?: { phone: string } }).profiles?.phone}</span>
+                {r.profile?.display_name ?? "—"}
+                <span className="ml-2 font-mono text-xs text-muted-foreground">{r.profile?.phone}</span>
               </p>
               <p className="mt-1 text-xs text-muted-foreground">
                 {meta.label} × {r.quantity} 节 · ¥{r.unit_price}/节 · 共 ¥{r.unit_price * r.quantity}
