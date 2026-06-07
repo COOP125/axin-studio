@@ -130,3 +130,54 @@ export const claimAdminIfUnclaimed = createServerFn({ method: "POST" })
     if (error) throw new Error(error.message);
     return { ok: true as const };
   });
+
+// Fixed coach credentials. The username is mapped to a synthetic email so it
+// can ride on Supabase's email/password auth without being a real address.
+const COACH_USERNAME = "AXI-Studio";
+const COACH_PASSWORD = "axi123456";
+const COACH_EMAIL = "axi-studio@axinstudio.local";
+
+const CoachSignInSchema = z.object({
+  username: z.string().min(1).max(64),
+  password: z.string().min(1).max(128),
+});
+
+/**
+ * Validate fixed coach credentials, ensure the auth user + admin role exist,
+ * and return the mapped email so the client can complete signInWithPassword.
+ */
+export const coachSignIn = createServerFn({ method: "POST" })
+  .inputValidator((data: { username: string; password: string }) => CoachSignInSchema.parse(data))
+  .handler(async ({ data }) => {
+    if (data.username !== COACH_USERNAME || data.password !== COACH_PASSWORD) {
+      throw new Error("账号或密码不正确");
+    }
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+
+    // Get-or-create the coach user with the fixed password.
+    const { data: created, error: createErr } = await supabaseAdmin.auth.admin.createUser({
+      email: COACH_EMAIL,
+      password: COACH_PASSWORD,
+      email_confirm: true,
+      user_metadata: { display_name: "阿新教练", role: "coach" },
+    });
+    let userId = created?.user?.id;
+    if (createErr && !/already.*registered|already exists/i.test(createErr.message)) {
+      throw new Error("教练账户初始化失败：" + createErr.message);
+    }
+    if (!userId) {
+      const { data: list } = await supabaseAdmin.auth.admin.listUsers({ page: 1, perPage: 200 });
+      const found = list?.users?.find((u) => u.email === COACH_EMAIL);
+      if (!found) throw new Error("教练账户查询失败");
+      userId = found.id;
+      // Force-reset password in case it drifted.
+      await supabaseAdmin.auth.admin.updateUserById(userId, { password: COACH_PASSWORD });
+    }
+
+    // Ensure admin role.
+    await supabaseAdmin
+      .from("user_roles")
+      .upsert({ user_id: userId, role: "admin" }, { onConflict: "user_id,role" });
+
+    return { email: COACH_EMAIL, password: COACH_PASSWORD };
+  });
