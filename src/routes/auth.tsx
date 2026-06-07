@@ -3,7 +3,7 @@ import { useEffect, useState } from "react";
 import { useServerFn } from "@tanstack/react-start";
 import { Toaster, toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
-import { requestOtp, verifyOtp } from "@/lib/auth.functions";
+import { requestOtp, verifyOtp, coachSignIn } from "@/lib/auth.functions";
 import { isChinaMobile } from "@/lib/schedule";
 
 export const Route = createFileRoute("/auth")({
@@ -164,24 +164,17 @@ function MemberLoginForm({ onDone }: { onDone: () => void }) {
 }
 
 function CoachLoginForm({ onDone }: { onDone: () => void }) {
-  const [email, setEmail] = useState("");
+  const [username, setUsername] = useState("AXI-Studio");
   const [password, setPassword] = useState("");
-  const [isSignup, setIsSignup] = useState(false);
   const [submitting, setSubmitting] = useState(false);
+  const coachSignInFn = useServerFn(coachSignIn);
 
   const onSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setSubmitting(true);
     try {
-      if (isSignup) {
-        const { error } = await supabase.auth.signUp({
-          email, password,
-          options: { emailRedirectTo: window.location.origin + "/auth?mode=coach" },
-        });
-        if (error) throw error;
-        toast.success("注册成功，正在登录…");
-      }
-      const { error: signInErr } = await supabase.auth.signInWithPassword({ email, password });
+      const { email, password: pw } = await coachSignInFn({ data: { username, password } });
+      const { error: signInErr } = await supabase.auth.signInWithPassword({ email, password: pw });
       if (signInErr) throw signInErr;
       toast.success("登录成功");
       onDone();
@@ -195,24 +188,19 @@ function CoachLoginForm({ onDone }: { onDone: () => void }) {
   return (
     <form onSubmit={onSubmit} className="space-y-5">
       <label className="block">
-        <span className="mb-1.5 block font-mono text-[10px] uppercase tracking-widest text-muted-foreground">邮箱</span>
-        <input value={email} onChange={(e) => setEmail(e.target.value)} type="email" className="input" placeholder="coach@example.com" />
+        <span className="mb-1.5 block font-mono text-[10px] uppercase tracking-widest text-muted-foreground">账号</span>
+        <input value={username} onChange={(e) => setUsername(e.target.value)} autoComplete="username" className="input" placeholder="AXI-Studio" />
       </label>
       <label className="block">
         <span className="mb-1.5 block font-mono text-[10px] uppercase tracking-widest text-muted-foreground">密码</span>
-        <input value={password} onChange={(e) => setPassword(e.target.value)} type="password" minLength={6} className="input" placeholder="至少 6 位" />
+        <input value={password} onChange={(e) => setPassword(e.target.value)} type="password" autoComplete="current-password" className="input" placeholder="请输入密码" />
       </label>
       <button type="submit" disabled={submitting} className="w-full bg-brand px-4 py-3 text-xs font-bold uppercase tracking-widest text-brand-foreground transition-colors hover:bg-foreground disabled:opacity-50">
-        {submitting ? "处理中…" : isSignup ? "注册并登录" : "登录"}
+        {submitting ? "登录中…" : "登录教练后台"}
       </button>
-      <button type="button" onClick={() => setIsSignup((s) => !s)} className="block w-full text-center text-[11px] text-muted-foreground hover:text-brand">
-        {isSignup ? "已有账号？返回登录" : "首次使用？注册教练账号"}
-      </button>
-      {isSignup && (
-        <p className="rounded-md border border-brand/30 bg-brand/5 p-3 text-[11px] leading-relaxed text-brand">
-          注册成功后请到「教练后台 → 初始化」点击「认领教练身份」（仅首位注册者可成为管理员）。
-        </p>
-      )}
+      <p className="rounded-md border border-brand/20 bg-brand/5 p-3 text-[11px] leading-relaxed text-muted-foreground">
+        教练账号为固定账号，仅限工作室运营者使用。
+      </p>
     </form>
   );
 }
