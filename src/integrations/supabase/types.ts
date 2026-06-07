@@ -14,16 +14,59 @@ export type Database = {
   }
   public: {
     Tables: {
-      [_ in never]: never
+      bookings: {
+        Row: {
+          course_type: Database["public"]["Enums"]["course_type"]
+          created_at: string
+          customer_name: string
+          customer_phone: string
+          id: string
+          note: string | null
+          slot_date: string
+          slot_hour: number
+        }
+        Insert: {
+          course_type: Database["public"]["Enums"]["course_type"]
+          created_at?: string
+          customer_name: string
+          customer_phone: string
+          id?: string
+          note?: string | null
+          slot_date: string
+          slot_hour: number
+        }
+        Update: {
+          course_type?: Database["public"]["Enums"]["course_type"]
+          created_at?: string
+          customer_name?: string
+          customer_phone?: string
+          id?: string
+          note?: string | null
+          slot_date?: string
+          slot_hour?: number
+        }
+        Relationships: []
+      }
     }
     Views: {
       [_ in never]: never
     }
     Functions: {
-      [_ in never]: never
+      course_capacity: {
+        Args: { ct: Database["public"]["Enums"]["course_type"] }
+        Returns: number
+      }
+      get_slot_counts: {
+        Args: { end_date: string; start_date: string }
+        Returns: {
+          booked: number
+          slot_date: string
+          slot_hour: number
+        }[]
+      }
     }
     Enums: {
-      [_ in never]: never
+      course_type: "private" | "student" | "group" | "cardio"
     }
     CompositeTypes: {
       [_ in never]: never
@@ -150,6 +193,8 @@ export type CompositeTypes<
 
 export const Constants = {
   public: {
-    Enums: {},
+    Enums: {
+      course_type: ["private", "student", "group", "cardio"],
+    },
   },
 } as const
