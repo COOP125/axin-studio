@@ -91,6 +91,12 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
       },
       { property: "og:type", content: "website" },
       { name: "twitter:card", content: "summary" },
+      { name: "twitter:title", content: "阿新个人健身工作室 — 在线约课" },
+      { name: "description", content: "Studio Scheduler is a web app for personal trainers to manage client bookings and class schedules." },
+      { property: "og:description", content: "Studio Scheduler is a web app for personal trainers to manage client bookings and class schedules." },
+      { name: "twitter:description", content: "Studio Scheduler is a web app for personal trainers to manage client bookings and class schedules." },
+      { property: "og:image", content: "https://pub-bb2e103a32db4e198524a2e9ed8f35b4.r2.dev/2baffe28-96d4-4614-9c26-27062bf247aa/id-preview-e34b6979--6ccd712c-528f-426e-aec2-f6a08f271b6c.lovable.app-1780846182538.png" },
+      { name: "twitter:image", content: "https://pub-bb2e103a32db4e198524a2e9ed8f35b4.r2.dev/2baffe28-96d4-4614-9c26-27062bf247aa/id-preview-e34b6979--6ccd712c-528f-426e-aec2-f6a08f271b6c.lovable.app-1780846182538.png" },
     ],
     links: [
       { rel: "stylesheet", href: appCss },
