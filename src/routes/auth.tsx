@@ -45,7 +45,7 @@ function AuthPage() {
           {tab === "member" ? "会员登录" : "教练登录"}
         </h1>
         <p className="mt-2 text-sm text-muted-foreground">
-          {tab === "member" ? "凭手机号 + 验证码登录会员账户" : "凭邮箱 + 密码进入教练后台"}
+          {tab === "member" ? "凭手机号 + 验证码登录会员账户" : "凭固定账号 + 密码进入教练后台"}
         </p>
 
         <div className="mt-8 grid grid-cols-2 gap-0 border border-white/10">
