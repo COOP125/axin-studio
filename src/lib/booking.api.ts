@@ -16,7 +16,7 @@ export async function fetchSlotCounts(startDate: string, endDate: string): Promi
   return (data ?? []) as SlotCount[];
 }
 
-export interface CreateBookingInput {
+export interface CreateTrialBookingInput {
   slot_date: string;
   slot_hour: number;
   course_type: CourseType;
@@ -25,7 +25,7 @@ export interface CreateBookingInput {
   note?: string;
 }
 
-export async function createBooking(input: CreateBookingInput) {
+export async function createTrialBooking(input: CreateTrialBookingInput) {
   const { error } = await supabase.from("bookings").insert({
     slot_date: input.slot_date,
     slot_hour: input.slot_hour,
@@ -33,6 +33,7 @@ export async function createBooking(input: CreateBookingInput) {
     customer_name: input.customer_name,
     customer_phone: input.customer_phone,
     note: input.note ?? null,
+    is_trial: true,
   });
   if (error) throw error;
 }
