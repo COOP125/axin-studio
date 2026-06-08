@@ -1,18 +1,18 @@
 import crypto from "crypto";
 
 /**
- * Aliyun Dysmsapi (短信服务 SMS) client.
- * Uses RPC-style POP signature v1 (HMAC-SHA1), so no SDK dependency is needed
- * and it runs inside the Cloudflare Worker SSR runtime.
+ * Aliyun Dypnsapi (号码认证服务 - 短信认证) client.
+ * 使用 RPC 风格 POP 签名 v1（HMAC-SHA1），无需 SDK 依赖。
  *
  * Docs:
- *  - SendSms https://help.aliyun.com/zh/sms/developer-reference/api-dysmsapi-2017-05-25-sendsms
+ *  - SendSmsVerifyCode https://help.aliyun.com/document_detail/415253.html
+ *  - 套餐包含平台提供的签名（如"速通互联验证码"）与模板（如 100001）
+ *  - 需要 RAM 权限：AliyunDypnsFullAccess
  */
 
-const ENDPOINT = "https://dysmsapi.aliyuncs.com/";
+const ENDPOINT = "https://dypnsapi.aliyuncs.com/";
 const VERSION = "2017-05-25";
 
-// RFC3986 percent-encoding as required by Aliyun POP.
 function popEncode(input: string): string {
   return encodeURIComponent(input)
     .replace(/\+/g, "%20")
@@ -34,7 +34,7 @@ function readCreds(): AliyunCreds {
   return { accessKeyId, accessKeySecret };
 }
 
-async function callDysmsapi(action: string, params: Record<string, string>) {
+async function callDypnsapi(action: string, params: Record<string, string>) {
   const { accessKeyId, accessKeySecret } = readCreds();
 
   const common: Record<string, string> = {
@@ -82,14 +82,15 @@ interface SendSmsArgs {
 
 export async function sendSmsVerifyCode(args: SendSmsArgs) {
   const validMinutes = Math.max(1, Math.ceil((args.validTimeSeconds ?? 300) / 60));
-  const body = await callDysmsapi("SendSms", {
-    PhoneNumbers: args.phoneNumber,
+  const body = await callDypnsapi("SendSmsVerifyCode", {
+    PhoneNumber: args.phoneNumber,
     SignName: args.signName,
     TemplateCode: args.templateCode,
     TemplateParam: JSON.stringify({ code: args.verifyCode, min: String(validMinutes) }),
     OutId: args.outId,
   });
-  return { bizId: (body.BizId as string | undefined) ?? args.outId };
+  const model = (body.Model as Record<string, unknown> | undefined) ?? {};
+  return { bizId: (model.BizId as string | undefined) ?? args.outId };
 }
 
 export function readSmsConfig() {
