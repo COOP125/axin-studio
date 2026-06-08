@@ -2,10 +2,12 @@ import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Toaster, toast } from "sonner";
-import { getMyAccount, cancelMyBooking, createPurchaseRequest } from "@/lib/account.functions";
+import { getMyAccount, cancelMyBooking, createPurchaseRequest, requestTrialUpgrade } from "@/lib/account.functions";
 import { COURSE_META, type CourseType } from "@/lib/schedule";
 import { supabase } from "@/integrations/supabase/client";
 import { useState } from "react";
+import wechatPayQr from "@/assets/wechat-pay-qr.asset.json";
+
 
 export const Route = createFileRoute("/_authenticated/account")({
   component: AccountPage,
