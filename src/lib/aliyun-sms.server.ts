@@ -1,16 +1,15 @@
 import crypto from "crypto";
 
 /**
- * Aliyun Dypnsapi (短信认证服务 / 号码认证 PNVS) client.
+ * Aliyun Dysmsapi (短信服务 SMS) client.
  * Uses RPC-style POP signature v1 (HMAC-SHA1), so no SDK dependency is needed
  * and it runs inside the Cloudflare Worker SSR runtime.
  *
  * Docs:
- *  - SendSmsVerifyCode  https://help.aliyun.com/zh/pnvs/developer-reference/api-dypnsapi-2017-05-25-sendsmsverifycode
- *  - CheckSmsVerifyCode https://help.aliyun.com/zh/pnvs/developer-reference/api-dypnsapi-2017-05-25-checksmsverifycode
+ *  - SendSms https://help.aliyun.com/zh/sms/developer-reference/api-dysmsapi-2017-05-25-sendsms
  */
 
-const ENDPOINT = "https://dypnsapi.aliyuncs.com/";
+const ENDPOINT = "https://dysmsapi.aliyuncs.com/";
 const VERSION = "2017-05-25";
 
 // RFC3986 percent-encoding as required by Aliyun POP.
@@ -35,7 +34,7 @@ function readCreds(): AliyunCreds {
   return { accessKeyId, accessKeySecret };
 }
 
-async function callDypnsapi(action: string, params: Record<string, string>) {
+async function callDysmsapi(action: string, params: Record<string, string>) {
   const { accessKeyId, accessKeySecret } = readCreds();
 
   const common: Record<string, string> = {
@@ -74,6 +73,7 @@ async function callDypnsapi(action: string, params: Record<string, string>) {
 
 interface SendSmsArgs {
   phoneNumber: string;
+  verifyCode: string;
   signName: string;
   templateCode: string;
   outId: string;
@@ -81,35 +81,15 @@ interface SendSmsArgs {
 }
 
 export async function sendSmsVerifyCode(args: SendSmsArgs) {
-  const body = await callDypnsapi("SendSmsVerifyCode", {
-    PhoneNumber: args.phoneNumber,
+  const validMinutes = Math.max(1, Math.ceil((args.validTimeSeconds ?? 300) / 60));
+  const body = await callDysmsapi("SendSms", {
+    PhoneNumbers: args.phoneNumber,
     SignName: args.signName,
     TemplateCode: args.templateCode,
+    TemplateParam: JSON.stringify({ code: args.verifyCode, min: String(validMinutes) }),
     OutId: args.outId,
-    ValidTime: String(args.validTimeSeconds ?? 300),
-    CodeLength: "6",
   });
-  const model = body.Model as { OutId?: string; RequestId?: string } | undefined;
-  return { outId: model?.OutId ?? args.outId };
-}
-
-interface CheckSmsArgs {
-  phoneNumber: string;
-  verifyCode: string;
-  outId: string;
-}
-
-export async function checkSmsVerifyCode(args: CheckSmsArgs): Promise<boolean> {
-  const body = await callDypnsapi("CheckSmsVerifyCode", {
-    PhoneNumber: args.phoneNumber,
-    VerifyCode: args.verifyCode,
-    OutId: args.outId,
-    CountryCode: "86",
-    CaseAuthPolicy: "0",
-  });
-  const model = body.Model as { VerifyResult?: string } | undefined;
-  // VerifyResult: "PASS" on success, "NONEXISTENT"/"UN_MATCH" otherwise.
-  return model?.VerifyResult === "PASS";
+  return { bizId: (body.BizId as string | undefined) ?? args.outId };
 }
 
 export function readSmsConfig() {
