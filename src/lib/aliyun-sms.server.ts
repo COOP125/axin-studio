@@ -87,7 +87,7 @@ export async function sendSmsVerifyCode(args: SendSmsArgs) {
     TemplateCode: args.templateCode,
     OutId: args.outId,
     ValidTime: String(args.validTimeSeconds ?? 300),
-    CodeType: "1",
+    CodeLength: "6",
   });
   const model = body.Model as { OutId?: string; RequestId?: string } | undefined;
   return { outId: model?.OutId ?? args.outId };
