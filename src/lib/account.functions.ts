@@ -32,6 +32,7 @@ export const getMyAccount = createServerFn({ method: "GET" })
       credits: creditList,
       bookings: bookingsRes.data ?? [],
       isAdmin: (rolesRes.data ?? []).some((r) => r.role === "admin"),
+      isCoach: (rolesRes.data ?? []).some((r) => r.role === "coach"),
     };
   });
 

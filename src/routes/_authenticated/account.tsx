@@ -90,7 +90,10 @@ function AccountPage() {
           </Link>
           <div className="flex items-center gap-4">
             {data?.isAdmin && (
-              <Link to="/admin" className="font-mono text-[10px] uppercase tracking-[0.25em] text-brand hover:underline">教练后台 →</Link>
+              <Link to="/admin" className="font-mono text-[10px] uppercase tracking-[0.25em] text-brand hover:underline">管理后台 →</Link>
+            )}
+            {data?.isCoach && (
+              <Link to="/coach" className="font-mono text-[10px] uppercase tracking-[0.25em] text-brand hover:underline">教练端 →</Link>
             )}
             <Link to="/" className="font-mono text-[10px] uppercase tracking-[0.25em] text-muted-foreground hover:text-brand">去预约</Link>
             <button onClick={signOut} className="font-mono text-[10px] uppercase tracking-[0.25em] text-muted-foreground hover:text-brand">退出</button>
