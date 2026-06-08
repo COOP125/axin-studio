@@ -1,119 +1,77 @@
-# AXI Studio 三端完整功能实施计划
 
-## 总体说明
+## 一、登录体系改造
 
-- **登录方式**：统一手机号验证码登录（已跑通），不接入微信（个人资质 + 备案域名问题）
-- **角色路由**：登录后根据角色自动跳转 — `member` → `/`，`coach` → `/coach`，`admin` → `/admin`
-- **数据隔离**：通过 RLS + `has_role()` 函数严格区分
+### 数据库
+- `profiles` 增 `has_password BOOLEAN DEFAULT false`、`bio TEXT`、`specialties TEXT[] DEFAULT '{}'`
+- 沿用 Supabase Auth 自带的 phone+password；密码哈希由 Auth 管理，我们不存
 
----
+### /auth 页面（统一入口，新增 Tab）
+```
+[ 会员登录 ]  [ 教练登录 ]
+┌────────────────────────┐
+│  [验证码登录] [密码登录] │   ← 子 Tab
+│  手机号: ___________    │
+│  验证码/密码: _______    │
+│  [获取验证码] [登录]     │
+└────────────────────────┘
+```
+- 会员 Tab：成功 → `/account`（若无 role 默认 member）
+- 教练 Tab：成功后校验是否有 `coach` role；无则报错"非教练账户"
+- 密码登录：`supabase.auth.signInWithPassword({ phone, password })`
+- 验证码登录：保持现有 OTP 流程
 
-## Phase 1：数据库改造（基础）
+### 强制设密码
+- 新增 `/set-password` 路由（在 `_authenticated` 下，无导航返回）
+- `_authenticated/route.tsx` 在登录后检查 `profile.has_password`：false → `redirect('/set-password')`
+- 校验：长度 ≥6，含字母+数字（特殊字符可选）
+- 保存：`supabase.auth.updateUser({ password })` → 更新 `profiles.has_password = true` → 按 role 跳转
 
-### 1.1 角色枚举扩展
-现状：`app_role = ('member', 'admin')`
-改造：增加 `'coach'` → `('member', 'coach', 'admin')`
+## 二、管理员课表编辑器 `/admin` → 新增"课表"Tab
 
-### 1.2 profiles 表增加字段
-- `nickname text` — 昵称
-- `avatar_url text` — 头像
-- `coach_id uuid` — 若该用户是教练，关联到自己（方便查 bookings）
+利用现有 `class_schedules` 表（weekday/slot_hour/course_type/coach_id/is_active）
 
-### 1.3 课表配置表（新）
-`class_schedules`：
-- `weekday smallint` (0-6)
-- `slot_hour smallint`
-- `course_type course_type`
-- `coach_id uuid`
-- `is_active bool`
-- 用途：管理员配置"每周固定课表模板"，前端按 weekday 渲染
+UI：周一~周日 × 时段（如 9-21 时）网格，每格点击弹出对话框：
+- 选择课种（private/student/group/cardio）
+- 选择教练（下拉列出所有 coach role 用户）
+- 启用/停用开关
+- 保存：upsert `class_schedules`
 
-### 1.4 取消规则约束
-`bookings` 表增加触发器：会员取消时检查 `slot_date + slot_hour - now() >= 3 hours`，否则报错。管理员通过 service_role 绕过。
+服务端函数：`adminUpsertSchedule`、`adminDeleteSchedule`、`adminListSchedules`、`adminListCoaches`
 
-### 1.5 头像 Storage Bucket
-创建 `avatars` bucket（public read，authenticated write，仅限自己的文件夹）
+## 三、教练资料
 
----
+### 教练端 `/coach` 新增"我的资料"Tab
+- 头像上传（avatars bucket，路径 `coaches/{user_id}.jpg`，写 signed URL）
+- 昵称（沿用 profile.nickname）
+- 简介（bio）
+- 擅长课种多选（specialties）
+- 保存 → `profiles` 更新
 
-## Phase 2：会员端 `/`（已有基础，补全）
+### 管理员"教练管理"Tab 增强
+现有：手机号添加/移除 coach role
+新增：列出所有教练，点击编辑 → 同教练自己看到的字段（代为编辑）
 
-| 功能 | 状态 |
-|------|------|
-| 手机号验证码登录 | ✅ 已有 |
-| 设置头像 + 昵称 | 🆕 新建 `/profile` 页 |
-| 查看课表 | ✅ 已有 |
-| 查看教练信息 | 🆕 新建 `/about` 页（教练介绍） |
-| 约课 | ✅ 已有 |
-| 提前3小时取消 | 🔧 加触发器 + 前端按钮按时间禁用 |
-| 查看剩余次数 | ✅ 已有（member_credits） |
+## 四、文件清单
 
----
+**新增**
+- `src/routes/_authenticated/set-password.tsx`
+- `src/lib/password.functions.ts` — `setMyPassword`、`getMyPasswordStatus`
+- `src/lib/schedule-admin.functions.ts` — 课表 CRUD
+- `src/lib/coach-profile.functions.ts` — 教练资料 + 头像签名 URL
 
-## Phase 3：教练端 `/coach`（全新）
+**修改**
+- 迁移：profiles 加字段
+- `src/routes/auth.tsx`：加 Tab（会员/教练）+ 子 Tab（验证码/密码）
+- `src/routes/_authenticated/route.tsx`：has_password 检查
+- `src/lib/auth.functions.ts`：密码登录、has_password 查询
+- `src/routes/_authenticated/admin.tsx`：加"课表"Tab + 教练编辑对话框
+- `src/routes/_authenticated/coach.tsx`：加"我的资料"Tab
 
-路由：`src/routes/_authenticated/coach/`（用 `has_role('coach')` 守卫）
+## 五、技术细节
 
-- `/coach` — 今日课表 + 每节课的报名会员列表（姓名 + 手机号）
-- `/coach/schedule` — 本周/下周课表视图
-- `/coach/stats` — 本周/本月数据：
-  - 各课种上课节数（private/student/group/cardio）
-  - 总课时数
-  - 简单柱状图（用 recharts）
-- `/coach/members` — 查看所有约过自己课的会员（手机号 + 头像 + 昵称 + 最近约课时间）
+- 密码校验正则：`/^(?=.*[A-Za-z])(?=.*\d).{6,}$/`
+- 强制设密码路由不能被绕过：在 `_authenticated/route.tsx` 的 beforeLoad 里查询 `has_password`，false 且当前不在 `/set-password` 时 redirect
+- 头像：private bucket + RLS 允许本人 + admin 上传，读取用 createSignedUrl（已有模式可复用）
+- 教练 specialties 用 multi-select checkbox（4 个课种）
 
----
-
-## Phase 4：管理员端 `/admin`（扩展现有）
-
-现状：已有 `/admin` 处理购课申请。扩展：
-
-- `/admin/credits` — **手动加课次**：输入会员手机号 → 选课种 → 加次数（替代现有的 purchase_requests 流程，直接根据线下收款操作）
-- `/admin/coaches` — **教练管理**：输入手机号 → 设为教练（自动给该手机号对应 user 加 coach 角色）
-- `/admin/schedule` — **课表编辑器**：
-  - 周视图网格（横轴：周一到周日，纵轴：6:00-22:00）
-  - 每个格子可设置：课种 + 教练
-  - "复制本周到下周"按钮
-  - "清空某天/某时段"
-- `/admin/stats` — **工作室数据**：
-  - 每周各课种上课节数
-  - 团课 + 有氧课的约课人数（已约 / 容量 满）
-- `/admin/bookings` — **强制取消**：任何时间都能取消任何预约（service_role）
-
----
-
-## Phase 5：UI / 模板化（后续）
-
-- 4 个客户端页面（about / courses / stories / faq）
-- `site_settings` 表 + 后台配置中心
-- 这部分上次已规划，放在三端跑通后做
-
----
-
-## 实施顺序建议
-
-我建议按这个顺序提交（每个阶段单独跑通再下一个）：
-
-1. **Phase 1 数据库迁移**（一次性提交，需你审批）
-2. **Phase 2 会员端补全**（头像昵称 + 取消规则）
-3. **Phase 3 教练端**（全新，工作量较大）
-4. **Phase 4 管理员端扩展**（4 个子页面）
-5. **Phase 5 模板化**（最后做）
-
----
-
-## 技术细节（给懂技术的人看）
-
-- 角色路由跳转：在 `/auth` 登录成功后查 `user_roles` → 按角色 `navigate()`
-- 教练端守卫：`src/routes/_authenticated/coach/route.tsx` 加 `beforeLoad` 检查 `has_role('coach')`
-- 管理员手动加课次：用 `createServerFn` + `requireSupabaseAuth` + `has_role('admin')` 校验，内部用 `supabaseAdmin` 写 `member_credits`
-- 课表编辑器：用 `class_schedules` 作为模板，渲染时按 `slot_date` 动态生成可约时段
-- 3小时取消规则：DB 触发器是硬保障，前端按钮 disabled 是体验
-
----
-
-## 一句话
-
-跑通这 4 个 Phase，你的工作室就有了一套**真实可演示**的三端系统，可以直接给客户看："你只要告诉我你的业务，我改改文案、加减几个功能，就能交付。"
-
-确认这个计划后，我就开始 Phase 1 的数据库迁移。
+实施顺序：迁移 → 密码登录后端 → /auth 改造 → 强制设密码 → 课表编辑器 → 教练资料
