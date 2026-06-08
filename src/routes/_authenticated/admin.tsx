@@ -6,6 +6,7 @@ import { Toaster, toast } from "sonner";
 import {
   adminListMembers, adminAdjustCredits, adminListBookings, adminCancelBooking,
   adminListPurchaseRequests, adminResolvePurchase,
+  adminListCoaches, adminAddCoachByPhone, adminRemoveCoach,
 } from "@/lib/admin.functions";
 import { claimAdminIfUnclaimed } from "@/lib/auth.functions";
 import { COURSE_META, formatDateISO, type CourseType } from "@/lib/schedule";
@@ -15,7 +16,7 @@ export const Route = createFileRoute("/_authenticated/admin")({
   component: AdminPage,
 });
 
-type Tab = "members" | "bookings" | "purchases";
+type Tab = "members" | "coaches" | "bookings" | "purchases";
 
 function AdminPage() {
   const [tab, setTab] = useState<Tab>("members");
@@ -59,13 +60,13 @@ function AdminPage() {
 
       <div className="border-b border-hairline px-6 md:px-10">
         <div className="mx-auto flex max-w-7xl gap-6">
-          {(["members", "bookings", "purchases"] as Tab[]).map((t) => (
+          {(["members", "coaches", "bookings", "purchases"] as Tab[]).map((t) => (
             <button
               key={t}
               onClick={() => setTab(t)}
               className={"-mb-px border-b-2 px-1 py-4 font-mono text-[11px] uppercase tracking-[0.25em] transition-colors " + (tab === t ? "border-brand text-brand" : "border-transparent text-muted-foreground hover:text-foreground")}
             >
-              {t === "members" ? "会员管理" : t === "bookings" ? "预约总览" : "购买申请"}
+              {t === "members" ? "会员管理" : t === "coaches" ? "教练管理" : t === "bookings" ? "预约总览" : "购买申请"}
             </button>
           ))}
         </div>
@@ -73,6 +74,7 @@ function AdminPage() {
 
       <main className="mx-auto max-w-7xl px-6 py-10 md:px-10">
         {tab === "members" && <MembersTab />}
+        {tab === "coaches" && <CoachesTab />}
         {tab === "bookings" && <BookingsTab />}
         {tab === "purchases" && <PurchasesTab />}
       </main>
