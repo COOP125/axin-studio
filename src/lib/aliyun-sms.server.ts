@@ -73,10 +73,10 @@ async function callDysmsapi(action: string, params: Record<string, string>) {
 
 interface SendSmsArgs {
   phoneNumber: string;
+  verifyCode: string;
   signName: string;
   templateCode: string;
   outId: string;
-  validTimeSeconds?: number;
 }
 
 export async function sendSmsVerifyCode(args: SendSmsArgs) {
