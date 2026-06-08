@@ -191,9 +191,13 @@ function CoachLoginForm({ onDone }: { onDone: () => void }) {
 
   const onSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (!username.trim() || !password) {
+      toast.error("请输入账号和密码");
+      return;
+    }
     setSubmitting(true);
     try {
-      const { email, password: pw } = await coachSignInFn({ data: { username, password } });
+      const { email, password: pw } = await coachSignInFn({ data: { username: username.trim(), password } });
       const { error: signInErr } = await supabase.auth.signInWithPassword({ email, password: pw });
       if (signInErr) throw signInErr;
       toast.success("登录成功");
