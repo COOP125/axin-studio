@@ -74,8 +74,8 @@ export const requestTrialUpgrade = createServerFn({ method: "POST" })
       .eq("user_id", userId)
       .eq("unit_price", 1)
       .in("status", ["pending", "approved"]);
-    if (exErr) throw new Error(exErr.message);
-    if ((existing ?? []).length > 0) throw new Error("您已使用过 1 元体验加购，每位会员仅限一次");
+    if (exErr) return { ok: false as const, error: exErr.message };
+    if ((existing ?? []).length > 0) return { ok: false as const, error: "您已使用过 1 元体验加购，每位会员仅限一次" };
 
     const { error } = await supabase.from("purchase_requests").insert({
       user_id: userId,
@@ -84,7 +84,7 @@ export const requestTrialUpgrade = createServerFn({ method: "POST" })
       unit_price: 1,
       note: "1元加购体验课",
     });
-    if (error) throw new Error(error.message);
+    if (error) return { ok: false as const, error: error.message };
     return { ok: true as const };
   });
 
