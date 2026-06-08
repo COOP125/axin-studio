@@ -211,6 +211,33 @@ function AccountPage() {
           </div>
         </div>
       )}
+
+      {editingName && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 p-4" onClick={() => !updateNameMut.isPending && setEditingName(false)}>
+          <div className="w-full max-w-sm border border-white/10 bg-card p-6" onClick={(e) => e.stopPropagation()}>
+            <p className="font-mono text-[10px] uppercase tracking-[0.3em] text-brand">Edit Nickname</p>
+            <h3 className="mt-1 font-display text-2xl font-bold italic">设置我的昵称</h3>
+            <input
+              autoFocus
+              value={nameDraft}
+              onChange={(e) => setNameDraft(e.target.value)}
+              maxLength={20}
+              placeholder="请输入昵称（最多20个字）"
+              className="input mt-4"
+            />
+            <button
+              disabled={updateNameMut.isPending || !nameDraft.trim()}
+              onClick={() => updateNameMut.mutate(nameDraft.trim())}
+              className="mt-4 w-full bg-brand py-3 font-mono text-[11px] uppercase tracking-widest text-brand-foreground transition-colors hover:bg-foreground disabled:opacity-50"
+            >
+              {updateNameMut.isPending ? "保存中…" : "保存"}
+            </button>
+            <button onClick={() => setEditingName(false)} disabled={updateNameMut.isPending} className="mt-2 w-full py-2 font-mono text-[10px] uppercase tracking-widest text-muted-foreground hover:text-brand">
+              取消
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
