@@ -1,9 +1,10 @@
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
 import { useQuery } from "@tanstack/react-query";
-import { useState } from "react";
-import { Toaster } from "sonner";
+import { useState, useEffect } from "react";
+import { Toaster, toast } from "sonner";
 import { getCoachDashboard, getCoachMembers } from "@/lib/coach.functions";
+import { getMyCoachProfile, updateMyCoachProfile, uploadCoachAvatar } from "@/lib/coach-profile.functions";
 import { COURSE_META, type CourseType } from "@/lib/schedule";
 import { supabase } from "@/integrations/supabase/client";
 import { useQueryClient } from "@tanstack/react-query";
@@ -12,7 +13,7 @@ export const Route = createFileRoute("/_authenticated/coach")({
   component: CoachPage,
 });
 
-type Tab = "today" | "stats" | "members";
+type Tab = "today" | "stats" | "members" | "profile";
 
 function CoachPage() {
   const [tab, setTab] = useState<Tab>("today");
