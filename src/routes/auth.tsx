@@ -3,7 +3,7 @@ import { useEffect, useState } from "react";
 import { useServerFn } from "@tanstack/react-start";
 import { Toaster, toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
-import { requestOtp, verifyOtp, coachSignIn } from "@/lib/auth.functions";
+import { requestOtp, verifyOtp, coachSignIn, getMyRoles } from "@/lib/auth.functions";
 import { isChinaMobile } from "@/lib/schedule";
 
 export const Route = createFileRoute("/auth")({
@@ -54,7 +54,7 @@ function AuthPage() {
         </div>
 
         <div className="mt-6">
-          {tab === "member" ? <MemberLoginForm onDone={() => navigate({ to: search.redirect as "/account" })} /> : <CoachLoginForm onDone={() => navigate({ to: "/admin" })} />}
+          {tab === "member" ? <MemberLoginForm fallback={search.redirect} /> : <CoachLoginForm onDone={() => navigate({ to: "/admin" })} />}
         </div>
       </main>
     </div>
@@ -72,7 +72,8 @@ function TabBtn({ active, onClick, children }: { active: boolean; onClick: () =>
   );
 }
 
-function MemberLoginForm({ onDone }: { onDone: () => void }) {
+function MemberLoginForm({ fallback }: { fallback: string }) {
+  const navigate = useNavigate();
   const [phone, setPhone] = useState("");
   const [code, setCode] = useState("");
   const [cooldown, setCooldown] = useState(0);
@@ -80,6 +81,7 @@ function MemberLoginForm({ onDone }: { onDone: () => void }) {
   const [submitting, setSubmitting] = useState(false);
   const requestFn = useServerFn(requestOtp);
   const verifyFn = useServerFn(verifyOtp);
+  const rolesFn = useServerFn(getMyRoles);
 
   useEffect(() => {
     if (cooldown <= 0) return;
@@ -114,8 +116,18 @@ function MemberLoginForm({ onDone }: { onDone: () => void }) {
       const { tokenHash } = await verifyFn({ data: { phone: normalized, code } });
       const { error } = await supabase.auth.verifyOtp({ token_hash: tokenHash, type: "magiclink" });
       if (error) throw error;
+      // Decide destination by role
+      let dest: string = fallback;
+      try {
+        const roles = await rolesFn();
+        if (roles.includes("admin")) dest = "/admin";
+        else if (roles.includes("coach")) dest = "/coach";
+        else dest = fallback || "/account";
+      } catch {
+        dest = fallback || "/account";
+      }
       toast.success("登录成功");
-      onDone();
+      navigate({ to: dest as "/account" });
     } catch (e) {
       toast.error(e instanceof Error ? e.message : "登录失败");
     } finally {

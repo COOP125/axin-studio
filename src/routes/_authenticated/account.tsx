@@ -2,7 +2,7 @@ import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Toaster, toast } from "sonner";
-import { getMyAccount, cancelMyBooking, createPurchaseRequest, requestTrialUpgrade } from "@/lib/account.functions";
+import { getMyAccount, cancelMyBooking, createPurchaseRequest, requestTrialUpgrade, updateMyProfile } from "@/lib/account.functions";
 import { COURSE_META, type CourseType } from "@/lib/schedule";
 import { supabase } from "@/integrations/supabase/client";
 import { useState } from "react";
@@ -19,9 +19,12 @@ function AccountPage() {
   const cancelFn = useServerFn(cancelMyBooking);
   const purchaseFn = useServerFn(createPurchaseRequest);
   const trialUpgradeFn = useServerFn(requestTrialUpgrade);
+  const updateProfileFn = useServerFn(updateMyProfile);
   const qc = useQueryClient();
   const navigate = useNavigate();
   const [trialOpen, setTrialOpen] = useState<null | "group" | "cardio">(null);
+  const [editingName, setEditingName] = useState(false);
+  const [nameDraft, setNameDraft] = useState("");
 
 
   const { data, isLoading } = useQuery({
@@ -53,6 +56,12 @@ function AccountPage() {
   });
 
 
+  const updateNameMut = useMutation({
+    mutationFn: (nickname: string) => updateProfileFn({ data: { nickname } }),
+    onSuccess: () => { toast.success("昵称已更新"); setEditingName(false); qc.invalidateQueries({ queryKey: ["account"] }); },
+    onError: (e) => toast.error(e instanceof Error ? e.message : "更新失败"),
+  });
+
   const signOut = async () => {
     await qc.cancelQueries();
     qc.clear();
@@ -81,7 +90,10 @@ function AccountPage() {
           </Link>
           <div className="flex items-center gap-4">
             {data?.isAdmin && (
-              <Link to="/admin" className="font-mono text-[10px] uppercase tracking-[0.25em] text-brand hover:underline">教练后台 →</Link>
+              <Link to="/admin" className="font-mono text-[10px] uppercase tracking-[0.25em] text-brand hover:underline">管理后台 →</Link>
+            )}
+            {data?.isCoach && (
+              <Link to="/coach" className="font-mono text-[10px] uppercase tracking-[0.25em] text-brand hover:underline">教练端 →</Link>
             )}
             <Link to="/" className="font-mono text-[10px] uppercase tracking-[0.25em] text-muted-foreground hover:text-brand">去预约</Link>
             <button onClick={signOut} className="font-mono text-[10px] uppercase tracking-[0.25em] text-muted-foreground hover:text-brand">退出</button>
@@ -95,7 +107,15 @@ function AccountPage() {
           <h1 className="mt-1 font-display text-4xl font-bold italic">
             {data?.profile?.display_name ?? "新会员"}
           </h1>
-          <p className="mt-1 text-sm text-muted-foreground">手机：{data?.profile?.phone}</p>
+          <div className="mt-1 flex items-center gap-3 text-sm text-muted-foreground">
+            <span>手机：{data?.profile?.phone}</span>
+            <button
+              onClick={() => { setNameDraft(data?.profile?.display_name ?? ""); setEditingName(true); }}
+              className="font-mono text-[10px] uppercase tracking-[0.25em] text-brand hover:underline"
+            >
+              编辑昵称
+            </button>
+          </div>
         </section>
 
         <section>
@@ -189,6 +209,33 @@ function AccountPage() {
               {trialUpgradeMut.isPending ? "提交中…" : "我已支付 · 提交申请"}
             </button>
             <button onClick={() => setTrialOpen(null)} disabled={trialUpgradeMut.isPending} className="mt-2 w-full py-2 font-mono text-[10px] uppercase tracking-widest text-muted-foreground hover:text-brand">
+              取消
+            </button>
+          </div>
+        </div>
+      )}
+
+      {editingName && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 p-4" onClick={() => !updateNameMut.isPending && setEditingName(false)}>
+          <div className="w-full max-w-sm border border-white/10 bg-card p-6" onClick={(e) => e.stopPropagation()}>
+            <p className="font-mono text-[10px] uppercase tracking-[0.3em] text-brand">Edit Nickname</p>
+            <h3 className="mt-1 font-display text-2xl font-bold italic">设置我的昵称</h3>
+            <input
+              autoFocus
+              value={nameDraft}
+              onChange={(e) => setNameDraft(e.target.value)}
+              maxLength={20}
+              placeholder="请输入昵称（最多20个字）"
+              className="input mt-4"
+            />
+            <button
+              disabled={updateNameMut.isPending || !nameDraft.trim()}
+              onClick={() => updateNameMut.mutate(nameDraft.trim())}
+              className="mt-4 w-full bg-brand py-3 font-mono text-[11px] uppercase tracking-widest text-brand-foreground transition-colors hover:bg-foreground disabled:opacity-50"
+            >
+              {updateNameMut.isPending ? "保存中…" : "保存"}
+            </button>
+            <button onClick={() => setEditingName(false)} disabled={updateNameMut.isPending} className="mt-2 w-full py-2 font-mono text-[10px] uppercase tracking-widest text-muted-foreground hover:text-brand">
               取消
             </button>
           </div>

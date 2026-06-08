@@ -53,6 +53,39 @@ export type Database = {
         }
         Relationships: []
       }
+      class_schedules: {
+        Row: {
+          coach_id: string | null
+          course_type: Database["public"]["Enums"]["course_type"]
+          created_at: string
+          id: string
+          is_active: boolean
+          slot_hour: number
+          updated_at: string
+          weekday: number
+        }
+        Insert: {
+          coach_id?: string | null
+          course_type: Database["public"]["Enums"]["course_type"]
+          created_at?: string
+          id?: string
+          is_active?: boolean
+          slot_hour: number
+          updated_at?: string
+          weekday: number
+        }
+        Update: {
+          coach_id?: string | null
+          course_type?: Database["public"]["Enums"]["course_type"]
+          created_at?: string
+          id?: string
+          is_active?: boolean
+          slot_hour?: number
+          updated_at?: string
+          weekday?: number
+        }
+        Relationships: []
+      }
       credit_transactions: {
         Row: {
           course_type: Database["public"]["Enums"]["course_type"]
@@ -136,22 +169,31 @@ export type Database = {
       }
       profiles: {
         Row: {
+          avatar_url: string | null
+          coach_id: string | null
           created_at: string
           display_name: string | null
+          nickname: string | null
           phone: string
           updated_at: string
           user_id: string
         }
         Insert: {
+          avatar_url?: string | null
+          coach_id?: string | null
           created_at?: string
           display_name?: string | null
+          nickname?: string | null
           phone: string
           updated_at?: string
           user_id: string
         }
         Update: {
+          avatar_url?: string | null
+          coach_id?: string | null
           created_at?: string
           display_name?: string | null
+          nickname?: string | null
           phone?: string
           updated_at?: string
           user_id?: string
@@ -244,7 +286,7 @@ export type Database = {
       }
     }
     Enums: {
-      app_role: "admin" | "member"
+      app_role: "admin" | "member" | "coach"
       course_type: "private" | "student" | "group" | "cardio"
     }
     CompositeTypes: {
@@ -373,7 +415,7 @@ export type CompositeTypes<
 export const Constants = {
   public: {
     Enums: {
-      app_role: ["admin", "member"],
+      app_role: ["admin", "member", "coach"],
       course_type: ["private", "student", "group", "cardio"],
     },
   },

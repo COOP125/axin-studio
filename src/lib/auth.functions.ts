@@ -8,6 +8,22 @@ const phoneToEmail = (phone: string) => `${phone}@phone.axinstudio.local`;
 const RequestOtpSchema = z.object({ phone: PhoneSchema });
 
 /**
+ * Return all roles assigned to the current signed-in user.
+ * Used by the auth page to redirect by role after login.
+ */
+export const getMyRoles = createServerFn({ method: "GET" })
+  .middleware([requireSupabaseAuth])
+  .handler(async ({ context }) => {
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    const { data, error } = await supabaseAdmin
+      .from("user_roles")
+      .select("role")
+      .eq("user_id", context.userId);
+    if (error) throw new Error(error.message);
+    return (data ?? []).map((r) => r.role as "member" | "coach" | "admin");
+  });
+
+/**
  * Send an SMS verification code via Aliyun 短信服务 (Dysmsapi).
  * We generate and validate the code server-side, and use the provider only
  * for delivery.

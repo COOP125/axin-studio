@@ -6,6 +6,7 @@ import { Toaster, toast } from "sonner";
 import {
   adminListMembers, adminAdjustCredits, adminListBookings, adminCancelBooking,
   adminListPurchaseRequests, adminResolvePurchase,
+  adminListCoaches, adminAddCoachByPhone, adminRemoveCoach,
 } from "@/lib/admin.functions";
 import { claimAdminIfUnclaimed } from "@/lib/auth.functions";
 import { COURSE_META, formatDateISO, type CourseType } from "@/lib/schedule";
@@ -15,7 +16,7 @@ export const Route = createFileRoute("/_authenticated/admin")({
   component: AdminPage,
 });
 
-type Tab = "members" | "bookings" | "purchases";
+type Tab = "members" | "coaches" | "bookings" | "purchases";
 
 function AdminPage() {
   const [tab, setTab] = useState<Tab>("members");
@@ -59,13 +60,13 @@ function AdminPage() {
 
       <div className="border-b border-hairline px-6 md:px-10">
         <div className="mx-auto flex max-w-7xl gap-6">
-          {(["members", "bookings", "purchases"] as Tab[]).map((t) => (
+          {(["members", "coaches", "bookings", "purchases"] as Tab[]).map((t) => (
             <button
               key={t}
               onClick={() => setTab(t)}
               className={"-mb-px border-b-2 px-1 py-4 font-mono text-[11px] uppercase tracking-[0.25em] transition-colors " + (tab === t ? "border-brand text-brand" : "border-transparent text-muted-foreground hover:text-foreground")}
             >
-              {t === "members" ? "会员管理" : t === "bookings" ? "预约总览" : "购买申请"}
+              {t === "members" ? "会员管理" : t === "coaches" ? "教练管理" : t === "bookings" ? "预约总览" : "购买申请"}
             </button>
           ))}
         </div>
@@ -73,6 +74,7 @@ function AdminPage() {
 
       <main className="mx-auto max-w-7xl px-6 py-10 md:px-10">
         {tab === "members" && <MembersTab />}
+        {tab === "coaches" && <CoachesTab />}
         {tab === "bookings" && <BookingsTab />}
         {tab === "purchases" && <PurchasesTab />}
       </main>
@@ -249,6 +251,80 @@ function ErrorBanner({ error }: { error: unknown }) {
     <div className="border border-brand/40 bg-brand/5 p-6 text-sm text-brand">
       <p className="font-semibold">无法加载：{msg}</p>
       <p className="mt-2 text-xs text-muted-foreground">如果是首次登录教练账户，请点击右上角的「初始化身份」按钮认领教练权限。</p>
+    </div>
+  );
+}
+
+function CoachesTab() {
+  const listFn = useServerFn(adminListCoaches);
+  const addFn = useServerFn(adminAddCoachByPhone);
+  const removeFn = useServerFn(adminRemoveCoach);
+  const qc = useQueryClient();
+  const [phone, setPhone] = useState("");
+
+  const { data, isLoading, error } = useQuery({ queryKey: ["admin", "coaches"], queryFn: () => listFn(), retry: false });
+
+  const addMut = useMutation({
+    mutationFn: (p: string) => addFn({ data: { phone: p } }),
+    onSuccess: () => { toast.success("已设为教练"); setPhone(""); qc.invalidateQueries({ queryKey: ["admin", "coaches"] }); },
+    onError: (e) => toast.error(e instanceof Error ? e.message : "添加失败"),
+  });
+
+  const removeMut = useMutation({
+    mutationFn: (uid: string) => removeFn({ data: { user_id: uid } }),
+    onSuccess: () => { toast.success("已移除教练身份"); qc.invalidateQueries({ queryKey: ["admin", "coaches"] }); },
+    onError: (e) => toast.error(e instanceof Error ? e.message : "移除失败"),
+  });
+
+  if (error) return <ErrorBanner error={error} />;
+
+  return (
+    <div className="space-y-8">
+      <section className="border border-brand/40 bg-brand/5 p-5">
+        <p className="font-mono text-[10px] uppercase tracking-[0.3em] text-brand">Add Coach · 新增教练</p>
+        <h2 className="mt-1 font-display text-xl font-bold italic">输入手机号将该会员设为教练</h2>
+        <p className="mt-1 text-xs text-muted-foreground">该手机号需先以会员身份登录过一次工作室小程序（即数据库中已有 profile 记录）。设置成功后，该手机号下次登录将自动进入教练端。</p>
+        <div className="mt-4 flex gap-2">
+          <input
+            value={phone}
+            onChange={(e) => setPhone(e.target.value.replace(/\D/g, "").slice(0, 11))}
+            inputMode="tel"
+            maxLength={11}
+            placeholder="11 位手机号"
+            className="input flex-1"
+          />
+          <button
+            disabled={addMut.isPending || !/^1[3-9]\d{9}$/.test(phone)}
+            onClick={() => addMut.mutate(phone)}
+            className="bg-brand px-5 font-mono text-[11px] uppercase tracking-widest text-brand-foreground transition-colors hover:bg-foreground disabled:opacity-50"
+          >
+            {addMut.isPending ? "添加中…" : "设为教练"}
+          </button>
+        </div>
+      </section>
+
+      <section>
+        <h2 className="mb-4 font-mono text-[11px] uppercase tracking-[0.3em] text-muted-foreground">现有教练</h2>
+        {isLoading ? <p className="text-muted-foreground">加载中…</p> : (
+          <ul className="space-y-2">
+            {(data ?? []).length === 0 && <p className="border border-dashed border-white/10 p-6 text-center text-sm text-muted-foreground">暂无教练，使用上方表单添加。</p>}
+            {(data ?? []).map((c) => (
+              <li key={c.user_id} className="flex items-center justify-between border border-white/10 bg-card p-4">
+                <div>
+                  <p className="text-sm font-semibold">{c.name}</p>
+                  <p className="font-mono text-xs text-muted-foreground">{c.phone}</p>
+                </div>
+                <button
+                  onClick={() => { if (confirm(`确认移除 ${c.name} 的教练身份？`)) removeMut.mutate(c.user_id); }}
+                  className="border border-white/10 px-3 py-1.5 font-mono text-[10px] uppercase tracking-widest text-muted-foreground hover:bg-white/5 hover:text-brand"
+                >
+                  移除
+                </button>
+              </li>
+            ))}
+          </ul>
+        )}
+      </section>
     </div>
   );
 }

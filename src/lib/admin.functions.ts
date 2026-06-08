@@ -3,6 +3,69 @@ import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import { z } from "zod";
 
 const CourseTypeSchema = z.enum(["private", "student", "group", "cardio"]);
+const PhoneSchema = z.string().regex(/^1[3-9]\d{9}$/, "请输入有效的中国手机号");
+
+export const adminListCoaches = createServerFn({ method: "GET" })
+  .middleware([requireSupabaseAuth])
+  .handler(async ({ context }) => {
+    const admin = await assertAdmin(context.userId);
+    const { data: roles, error } = await admin
+      .from("user_roles")
+      .select("user_id")
+      .eq("role", "coach");
+    if (error) throw new Error(error.message);
+    const ids = (roles ?? []).map((r) => r.user_id);
+    if (ids.length === 0) return [];
+    const { data: profiles } = await admin
+      .from("profiles")
+      .select("user_id, phone, nickname, display_name, created_at")
+      .in("user_id", ids);
+    return (profiles ?? []).map((p) => ({
+      user_id: p.user_id,
+      phone: p.phone,
+      name: p.nickname ?? p.display_name ?? "—",
+      created_at: p.created_at,
+    }));
+  });
+
+export const adminAddCoachByPhone = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((data: { phone: string }) =>
+    z.object({ phone: PhoneSchema }).parse(data),
+  )
+  .handler(async ({ data, context }) => {
+    const admin = await assertAdmin(context.userId);
+    // Find the user via profiles.phone (members register profile row on first login)
+    const { data: profile, error: pErr } = await admin
+      .from("profiles")
+      .select("user_id")
+      .eq("phone", data.phone)
+      .maybeSingle();
+    if (pErr) throw new Error(pErr.message);
+    if (!profile) throw new Error("找不到此手机号对应的会员，请让该手机号先登录一次工作室小程序");
+    // Grant coach role (idempotent)
+    const { error: insErr } = await admin
+      .from("user_roles")
+      .upsert({ user_id: profile.user_id, role: "coach" }, { onConflict: "user_id,role" });
+    if (insErr) throw new Error(insErr.message);
+    return { ok: true as const };
+  });
+
+export const adminRemoveCoach = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((data: { user_id: string }) =>
+    z.object({ user_id: z.string().uuid() }).parse(data),
+  )
+  .handler(async ({ data, context }) => {
+    const admin = await assertAdmin(context.userId);
+    const { error } = await admin
+      .from("user_roles")
+      .delete()
+      .eq("user_id", data.user_id)
+      .eq("role", "coach");
+    if (error) throw new Error(error.message);
+    return { ok: true as const };
+  });
 
 async function assertAdmin(userId: string) {
   const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
