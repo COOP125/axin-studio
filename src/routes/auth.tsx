@@ -101,11 +101,12 @@ function MemberLoginForm({ onDone }: { onDone: () => void }) {
 
   const onSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!isChinaMobile(phone)) { toast.error("手机号格式有误"); return; }
+    const normalized = phone.replace(/\D/g, "");
+    if (!isChinaMobile(normalized)) { toast.error("手机号格式有误"); return; }
     if (!/^\d{6}$/.test(code)) { toast.error("请输入 6 位验证码"); return; }
     setSubmitting(true);
     try {
-      const { tokenHash } = await verifyFn({ data: { phone, code } });
+      const { tokenHash } = await verifyFn({ data: { phone: normalized, code } });
       const { error } = await supabase.auth.verifyOtp({ token_hash: tokenHash, type: "magiclink" });
       if (error) throw error;
       toast.success("登录成功");
