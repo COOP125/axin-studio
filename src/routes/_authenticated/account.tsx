@@ -158,9 +158,33 @@ function AccountPage() {
           </section>
         )}
       </main>
+
+      {trialOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 p-4" onClick={() => !trialUpgradeMut.isPending && setTrialOpen(null)}>
+          <div className="w-full max-w-sm border border-white/10 bg-card p-6" onClick={(e) => e.stopPropagation()}>
+            <p className="font-mono text-[10px] uppercase tracking-[0.3em] text-brand">Scan to Pay · ¥1</p>
+            <h3 className="mt-1 font-display text-2xl font-bold italic">{trialOpen === "group" ? "团操课" : "Cardio 有氧"} · +1 节</h3>
+            <p className="mt-1 text-xs text-muted-foreground">微信扫码支付 1 元后，点击下方按钮提交，教练核对后将立即添加 1 节课次。</p>
+            <div className="mt-4 flex justify-center bg-white p-4">
+              <img src={wechatPayQr.url} alt="微信支付收款码" className="h-56 w-auto object-contain" />
+            </div>
+            <button
+              disabled={trialUpgradeMut.isPending}
+              onClick={() => trialUpgradeMut.mutate(trialOpen)}
+              className="mt-4 w-full bg-brand py-3 font-mono text-[11px] uppercase tracking-widest text-brand-foreground transition-colors hover:bg-foreground disabled:opacity-50"
+            >
+              {trialUpgradeMut.isPending ? "提交中…" : "我已支付 · 提交申请"}
+            </button>
+            <button onClick={() => setTrialOpen(null)} disabled={trialUpgradeMut.isPending} className="mt-2 w-full py-2 font-mono text-[10px] uppercase tracking-widest text-muted-foreground hover:text-brand">
+              取消
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
+
 
 function BookingRow({ booking, canCancel, onCancel }: { booking: { id: string; slot_date: string; slot_hour: number; course_type: string; is_trial: boolean }; canCancel?: boolean; onCancel?: () => void }) {
   const meta = COURSE_META[booking.course_type as CourseType];
