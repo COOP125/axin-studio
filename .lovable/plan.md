@@ -1,88 +1,119 @@
-# 阿新工作室 — 会员系统 & 教练后台
+# AXI Studio 三端完整功能实施计划
 
-## 一、会员手机验证码登录
+## 总体说明
 
-**关键提醒（需您先确认）：** 中国大陆手机号短信验证码需要一家国内短信服务商（例如 **阿里云短信** 或 **腾讯云短信**）。Supabase 自带的 Twilio 渠道对国内号码送达率很差。建议方案：
+- **登录方式**：统一手机号验证码登录（已跑通），不接入微信（个人资质 + 备案域名问题）
+- **角色路由**：登录后根据角色自动跳转 — `member` → `/`，`coach` → `/coach`，`admin` → `/admin`
+- **数据隔离**：通过 RLS + `has_role()` 函数严格区分
 
-- 我们自建一个 `/api/public/send-sms` 后端接口，调用阿里云短信下发 6 位验证码（验证码存到数据库，5 分钟有效）。
-- 用户提交验证码后，后端校验通过 → 用 Supabase Admin 创建/查询用户并返回登录会话。
-- 您需要提供阿里云的 `AccessKey ID / Secret / 短信签名 / 模板 CODE`（或者腾讯云相应凭证）。
+---
 
-**在您提供短信凭证之前**，我会先实现完整流程，但短信发送会用一个"开发模式"：验证码直接回写到前端 toast 显示，方便您先体验整个流程。等您拿到短信服务商凭证后，我再一行配置切换到真发短信。
+## Phase 1：数据库改造（基础）
 
-## 二、数据库变更
+### 1.1 角色枚举扩展
+现状：`app_role = ('member', 'admin')`
+改造：增加 `'coach'` → `('member', 'coach', 'admin')`
 
-新增表：
+### 1.2 profiles 表增加字段
+- `nickname text` — 昵称
+- `avatar_url text` — 头像
+- `coach_id uuid` — 若该用户是教练，关联到自己（方便查 bookings）
 
-- `profiles` — 会员资料：`user_id (auth.users)`, `phone`, `display_name`, `created_at`
-- `member_credits` — 每个会员每种课程剩余次数：`user_id`, `course_type`, `remaining`
-- `credit_transactions` — 增减流水（购买、消课、教练手动调整）：`user_id`, `course_type`, `delta`, `reason`, `operator`
-- `phone_otp` — 验证码：`phone`, `code_hash`, `expires_at`, `consumed`
-- `app_roles` 枚举 + `user_roles` 表 — `admin` / `member`，配合 `has_role()` 安全函数（用于教练后台权限）
+### 1.3 课表配置表（新）
+`class_schedules`：
+- `weekday smallint` (0-6)
+- `slot_hour smallint`
+- `course_type course_type`
+- `coach_id uuid`
+- `is_active bool`
+- 用途：管理员配置"每周固定课表模板"，前端按 weekday 渲染
 
-`bookings` 表加一列 `user_id (nullable)`，登录会员预约时写入。  
-增加触发器：会员预约（非免费体验）时自动扣减 `member_credits`；若余额不足则报错。
+### 1.4 取消规则约束
+`bookings` 表增加触发器：会员取消时检查 `slot_date + slot_hour - now() >= 3 hours`，否则报错。管理员通过 service_role 绕过。
 
-RLS：会员只能读写自己的 profile/credits/bookings；教练（admin 角色）可读写所有人。
+### 1.5 头像 Storage Bucket
+创建 `avatars` bucket（public read，authenticated write，仅限自己的文件夹）
 
-## 三、预约逻辑改造
+---
 
-- **未登录访客**：进入"体验预约"模式 — 只能看到团操课 / 有氧 cardio 课，并且每个手机号一生只能免费预约 **1 次**（用 `bookings.customer_phone + is_trial=true` 唯一约束保证）。
-- **已登录会员**：进入"会员预约"模式 — 看到全部课程，预约时扣减对应课程的剩余次数。
-- 顶部状态栏：未登录显示"登录会员"按钮；已登录显示昵称 + 各课程剩余次数。
+## Phase 2：会员端 `/`（已有基础，补全）
 
-## 四、会员中心 `/account`
+| 功能 | 状态 |
+|------|------|
+| 手机号验证码登录 | ✅ 已有 |
+| 设置头像 + 昵称 | 🆕 新建 `/profile` 页 |
+| 查看课表 | ✅ 已有 |
+| 查看教练信息 | 🆕 新建 `/about` 页（教练介绍） |
+| 约课 | ✅ 已有 |
+| 提前3小时取消 | 🔧 加触发器 + 前端按钮按时间禁用 |
+| 查看剩余次数 | ✅ 已有（member_credits） |
 
-- 我的预约（即将到来 / 历史）
-- 课程剩余次数卡片（私教 / 中高考 / 团操 / 有氧）
-- "购买课程"区块（仅展示价格表，**暂不接支付**，按"申请购买"按钮会生成一条待教练线下确认的工单 `purchase_requests` 表；后续接微信支付时再升级）：
-  - 私教课 ¥800/节
-  - 中高考应试 ¥300/节
-  - 团操课 ¥200/节
-  - 有氧 cardio ¥200/节
+---
 
-## 五、教练后台 `/admin`
+## Phase 3：教练端 `/coach`（全新）
 
-- 用 **邮箱 + 密码** 登录（账号密码登录由您指定一个邮箱，我注册后授予 `admin` 角色；初始密码您登录后自行修改）。
-- 路由放在 `_authenticated/` 下，再用 `has_role(uid, 'admin')` 服务端二次校验。
-- 功能页：
-  1. **会员列表**：姓名 / 手机 / 各课程剩余次数 / 累计预约数
-  2. **会员详情**：手动调整剩余次数（+/-）、查看消费流水、查看预约记录
-  3. **预约总览**：按日期查看所有时段被谁约了，可代客取消
-  4. **购买申请**：处理会员提交的"购买课程"工单 → 确认到账后点击"充值"自动加次数
+路由：`src/routes/_authenticated/coach/`（用 `has_role('coach')` 守卫）
 
-## 六、UI / 视觉
+- `/coach` — 今日课表 + 每节课的报名会员列表（姓名 + 手机号）
+- `/coach/schedule` — 本周/下周课表视图
+- `/coach/stats` — 本周/本月数据：
+  - 各课种上课节数（private/student/group/cardio）
+  - 总课时数
+  - 简单柱状图（用 recharts）
+- `/coach/members` — 查看所有约过自己课的会员（手机号 + 头像 + 昵称 + 最近约课时间）
 
-- 新封面：将 `coach-axi.jpg` 重新生成 — 一位身材健美、阳光自信的亚洲女性教练，彩色调（活力橙、运动绿、暖光），区别于现在的暗调男性形象。整体保持现有"亮绿运动感"设计系统不变。
-- 首页 hero 区文案微调："阿新 · 私人健身工作室" 保留，副标题改为体现女教练气质。
+---
 
-## 七、技术实现（详细）
+## Phase 4：管理员端 `/admin`（扩展现有）
 
-- **前端路由**新增：
-  - `/auth` 公开 — 手机号验证码登录
-  - `/_authenticated/account` 会员中心
-  - `/_authenticated/admin` 教练后台（内含子页 `/admin/members`, `/admin/bookings`, `/admin/purchases`）
-- **Server Functions**（`createServerFn`）：
-  - `requestOtp({ phone })` → 写入 `phone_otp`，调用短信网关（开发模式下直接返回 code）
-  - `verifyOtp({ phone, code })` → 校验后用 `supabaseAdmin.auth.admin` 创建/获取用户，签发 magic link token 让前端 `setSession`
-  - `getMyCredits()` / `getMyBookings()` — 会员侧
-  - `adminListMembers()` / `adminAdjustCredits()` / `adminListBookings()` — 教练侧（`has_role` 校验）
-- **公共 API**：`/api/public/sms-webhook`（如果短信商有回执需要）
-- **现有 `bookings.customer_phone`** 字段保留以兼容体验预约；登录后预约时同时填 `user_id`。
+现状：已有 `/admin` 处理购课申请。扩展：
 
-## 八、本轮交付范围（确认后即开工）
+- `/admin/credits` — **手动加课次**：输入会员手机号 → 选课种 → 加次数（替代现有的 purchase_requests 流程，直接根据线下收款操作）
+- `/admin/coaches` — **教练管理**：输入手机号 → 设为教练（自动给该手机号对应 user 加 coach 角色）
+- `/admin/schedule` — **课表编辑器**：
+  - 周视图网格（横轴：周一到周日，纵轴：6:00-22:00）
+  - 每个格子可设置：课种 + 教练
+  - "复制本周到下周"按钮
+  - "清空某天/某时段"
+- `/admin/stats` — **工作室数据**：
+  - 每周各课种上课节数
+  - 团课 + 有氧课的约课人数（已约 / 容量 满）
+- `/admin/bookings` — **强制取消**：任何时间都能取消任何预约（service_role）
 
-1. 数据库迁移（表、枚举、RLS、触发器、角色函数）
-2. 手机验证码登录（开发模式，验证码 toast 显示）
-3. 会员中心 + 课程剩余次数显示 + 购买申请
-4. 教练后台（先做：会员列表 + 调整次数 + 预约总览；购买工单做简版）
-5. 替换教练封面图为彩色女性形象
-6. 首页区分体验预约 / 会员预约
+---
 
-## 需要您确认的 3 件事
+## Phase 5：UI / 模板化（后续）
 
-1. 短信服务：**先用开发模式（验证码弹窗显示）** 跑通流程，等您拿到阿里云/腾讯云凭证再切真实发送？还是您现在就有凭证？
-2. 教练后台登录邮箱：请告诉我一个邮箱地址，我会创建管理员账号并设一个初始密码（例如 `Axin@2026`），您首次登录后自行修改。
-3. 体验预约规则："每个手机号免费体验一次"是否合适？还是您希望"每个手机号每月一次"？
+- 4 个客户端页面（about / courses / stories / faq）
+- `site_settings` 表 + 后台配置中心
+- 这部分上次已规划，放在三端跑通后做
 
-确认后我就开始按上述方案实施。
+---
+
+## 实施顺序建议
+
+我建议按这个顺序提交（每个阶段单独跑通再下一个）：
+
+1. **Phase 1 数据库迁移**（一次性提交，需你审批）
+2. **Phase 2 会员端补全**（头像昵称 + 取消规则）
+3. **Phase 3 教练端**（全新，工作量较大）
+4. **Phase 4 管理员端扩展**（4 个子页面）
+5. **Phase 5 模板化**（最后做）
+
+---
+
+## 技术细节（给懂技术的人看）
+
+- 角色路由跳转：在 `/auth` 登录成功后查 `user_roles` → 按角色 `navigate()`
+- 教练端守卫：`src/routes/_authenticated/coach/route.tsx` 加 `beforeLoad` 检查 `has_role('coach')`
+- 管理员手动加课次：用 `createServerFn` + `requireSupabaseAuth` + `has_role('admin')` 校验，内部用 `supabaseAdmin` 写 `member_credits`
+- 课表编辑器：用 `class_schedules` 作为模板，渲染时按 `slot_date` 动态生成可约时段
+- 3小时取消规则：DB 触发器是硬保障，前端按钮 disabled 是体验
+
+---
+
+## 一句话
+
+跑通这 4 个 Phase，你的工作室就有了一套**真实可演示**的三端系统，可以直接给客户看："你只要告诉我你的业务，我改改文案、加减几个功能，就能交付。"
+
+确认这个计划后，我就开始 Phase 1 的数据库迁移。
