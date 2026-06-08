@@ -85,8 +85,16 @@ export const createMemberBooking = createServerFn({ method: "POST" })
   .handler(async ({ data, context }) => {
     const { supabase, userId } = context;
 
-    const { data: profile } = await supabase.from("profiles").select("phone, display_name").eq("user_id", userId).maybeSingle();
-    if (!profile) throw new Error("会员资料未初始化，请重新登录");
+    let { data: profile } = await supabase.from("profiles").select("phone, display_name").eq("user_id", userId).maybeSingle();
+    if (!profile) {
+      const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+      const { data: userRes } = await supabaseAdmin.auth.admin.getUserById(userId);
+      const phone = (userRes?.user?.user_metadata as { phone?: string } | null)?.phone;
+      const display_name = (userRes?.user?.user_metadata as { display_name?: string } | null)?.display_name ?? (phone ? `会员-${phone.slice(-4)}` : null);
+      if (!phone) throw new Error("会员资料未初始化，请重新登录");
+      await supabaseAdmin.from("profiles").upsert({ user_id: userId, phone, display_name }, { onConflict: "user_id" });
+      profile = { phone, display_name };
+    }
 
     const { error } = await supabase.from("bookings").insert({
       slot_date: data.slot_date,
