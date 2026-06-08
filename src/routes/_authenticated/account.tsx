@@ -115,11 +115,32 @@ function AccountPage() {
             <span className="font-mono text-[10px] text-muted-foreground">点击「申请购买」后教练会与您联系收款</span>
           </div>
           <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
+        <section className="border border-brand/40 bg-brand/5 p-5">
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <div>
+              <p className="font-mono text-[10px] uppercase tracking-[0.3em] text-brand">Welcome Offer · 1 元加购</p>
+              <h2 className="mt-1 font-display text-2xl font-bold italic">¥1 再加 1 节体验课</h2>
+              <p className="mt-1 text-sm text-muted-foreground">仅限新会员一次，可选 团操课 或 有氧 Cardio</p>
+            </div>
+            <div className="flex gap-2">
+              <button onClick={() => setTrialOpen("group")} className="border border-brand bg-brand px-4 py-2 font-mono text-[10px] uppercase tracking-widest text-brand-foreground transition-colors hover:bg-foreground">+1 团操课</button>
+              <button onClick={() => setTrialOpen("cardio")} className="border border-brand px-4 py-2 font-mono text-[10px] uppercase tracking-widest text-brand transition-colors hover:bg-brand hover:text-brand-foreground">+1 Cardio</button>
+            </div>
+          </div>
+        </section>
+
+        <section>
+          <div className="mb-4 flex items-center justify-between">
+            <h2 className="font-mono text-[11px] uppercase tracking-[0.3em] text-muted-foreground">购买课程 / Purchase</h2>
+            <span className="font-mono text-[10px] text-muted-foreground">点击「申请购买」后教练会与您联系收款</span>
+          </div>
+          <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
             {(Object.keys(COURSE_META) as CourseType[]).map((ct) => (
               <PurchaseCard key={ct} courseType={ct} onSubmit={(qty) => purchaseMut.mutate({ course_type: ct, quantity: qty, unit_price: COURSE_META[ct].price })} pending={purchaseMut.isPending} />
             ))}
           </div>
         </section>
+
 
         <section>
           <h2 className="mb-4 font-mono text-[11px] uppercase tracking-[0.3em] text-muted-foreground">我的预约 · 即将到来</h2>
