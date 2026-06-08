@@ -38,6 +38,7 @@ export const requestOtp = createServerFn({ method: "POST" })
       signName,
       templateCode,
       outId: crypto.randomUUID(),
+      validTimeSeconds: 300,
     });
 
     const expiresAt = new Date(Date.now() + 5 * 60 * 1000).toISOString();
