@@ -62,13 +62,13 @@ function AdminPage() {
 
       <div className="border-b border-hairline px-6 md:px-10">
         <div className="mx-auto flex max-w-7xl gap-6">
-          {(["members", "coaches", "bookings", "purchases"] as Tab[]).map((t) => (
+          {(["members", "coaches", "schedule", "bookings", "purchases"] as Tab[]).map((t) => (
             <button
               key={t}
               onClick={() => setTab(t)}
               className={"-mb-px border-b-2 px-1 py-4 font-mono text-[11px] uppercase tracking-[0.25em] transition-colors " + (tab === t ? "border-brand text-brand" : "border-transparent text-muted-foreground hover:text-foreground")}
             >
-              {t === "members" ? "会员管理" : t === "coaches" ? "教练管理" : t === "bookings" ? "预约总览" : "购买申请"}
+              {t === "members" ? "会员管理" : t === "coaches" ? "教练管理" : t === "schedule" ? "课表编辑" : t === "bookings" ? "预约总览" : "购买申请"}
             </button>
           ))}
         </div>
@@ -77,6 +77,7 @@ function AdminPage() {
       <main className="mx-auto max-w-7xl px-6 py-10 md:px-10">
         {tab === "members" && <MembersTab />}
         {tab === "coaches" && <CoachesTab />}
+        {tab === "schedule" && <ScheduleTab />}
         {tab === "bookings" && <BookingsTab />}
         {tab === "purchases" && <PurchasesTab />}
       </main>
