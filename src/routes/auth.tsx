@@ -87,9 +87,10 @@ function MemberLoginForm({ onDone }: { onDone: () => void }) {
   }, [cooldown]);
 
   const onSendCode = async () => {
-    if (!isChinaMobile(phone)) { toast.error("请输入有效的中国大陆手机号"); return; }
+    const normalized = phone.replace(/\D/g, "");
+    if (!isChinaMobile(normalized)) { toast.error("请输入有效的中国大陆手机号"); return; }
     try {
-      await requestFn({ data: { phone } });
+      await requestFn({ data: { phone: normalized } });
       setCooldown(60);
       toast.success("验证码已发送，请查收短信");
 
@@ -100,11 +101,12 @@ function MemberLoginForm({ onDone }: { onDone: () => void }) {
 
   const onSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!isChinaMobile(phone)) { toast.error("手机号格式有误"); return; }
+    const normalized = phone.replace(/\D/g, "");
+    if (!isChinaMobile(normalized)) { toast.error("手机号格式有误"); return; }
     if (!/^\d{6}$/.test(code)) { toast.error("请输入 6 位验证码"); return; }
     setSubmitting(true);
     try {
-      const { tokenHash } = await verifyFn({ data: { phone, code } });
+      const { tokenHash } = await verifyFn({ data: { phone: normalized, code } });
       const { error } = await supabase.auth.verifyOtp({ token_hash: tokenHash, type: "magiclink" });
       if (error) throw error;
       toast.success("登录成功");
