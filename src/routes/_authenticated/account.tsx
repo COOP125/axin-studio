@@ -104,7 +104,15 @@ function AccountPage() {
           <h1 className="mt-1 font-display text-4xl font-bold italic">
             {data?.profile?.display_name ?? "新会员"}
           </h1>
-          <p className="mt-1 text-sm text-muted-foreground">手机：{data?.profile?.phone}</p>
+          <div className="mt-1 flex items-center gap-3 text-sm text-muted-foreground">
+            <span>手机：{data?.profile?.phone}</span>
+            <button
+              onClick={() => { setNameDraft(data?.profile?.display_name ?? ""); setEditingName(true); }}
+              className="font-mono text-[10px] uppercase tracking-[0.25em] text-brand hover:underline"
+            >
+              编辑昵称
+            </button>
+          </div>
         </section>
 
         <section>
