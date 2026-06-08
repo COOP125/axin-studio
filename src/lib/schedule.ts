@@ -59,5 +59,5 @@ export function weekdayLabel(d: Date): string {
 }
 
 export function isChinaMobile(phone: string): boolean {
-  return /^1[3-9]\d{9}$/.test(phone);
+  return /^1[3-9]\d{9}$/.test((phone ?? "").replace(/\D/g, ""));
 }
