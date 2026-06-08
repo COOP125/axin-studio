@@ -7,6 +7,7 @@ import { COURSE_META, type CourseType } from "@/lib/schedule";
 import { supabase } from "@/integrations/supabase/client";
 import { useState } from "react";
 import wechatPayQr from "@/assets/wechat-pay-qr.asset.json";
+import alipayPayQr from "@/assets/alipay-pay-qr.asset.json";
 
 
 export const Route = createFileRoute("/_authenticated/account")({
@@ -169,9 +170,16 @@ function AccountPage() {
           <div className="w-full max-w-sm border border-white/10 bg-card p-6" onClick={(e) => e.stopPropagation()}>
             <p className="font-mono text-[10px] uppercase tracking-[0.3em] text-brand">Scan to Pay · ¥1</p>
             <h3 className="mt-1 font-display text-2xl font-bold italic">{trialOpen === "group" ? "团操课" : "Cardio 有氧"} · +1 节</h3>
-            <p className="mt-1 text-xs text-muted-foreground">微信扫码支付 1 元后，点击下方按钮提交，教练核对后将立即添加 1 节课次。</p>
-            <div className="mt-4 flex justify-center bg-white p-4">
-              <img src={wechatPayQr.url} alt="微信支付收款码" className="h-56 w-auto object-contain" />
+            <p className="mt-1 text-xs text-muted-foreground">使用微信或支付宝扫码支付 1 元后，点击下方按钮提交，教练核对后将立即添加 1 节课次。</p>
+            <div className="mt-4 grid grid-cols-2 gap-3">
+              <div className="flex flex-col items-center bg-white p-3">
+                <img src={wechatPayQr.url} alt="微信支付收款码" className="h-40 w-auto object-contain" />
+                <p className="mt-2 font-mono text-[10px] uppercase tracking-widest text-black">WeChat Pay</p>
+              </div>
+              <div className="flex flex-col items-center bg-white p-3">
+                <img src={alipayPayQr.url} alt="支付宝收款码" className="h-40 w-auto object-contain" />
+                <p className="mt-2 font-mono text-[10px] uppercase tracking-widest text-black">Alipay</p>
+              </div>
             </div>
             <button
               disabled={trialUpgradeMut.isPending}
