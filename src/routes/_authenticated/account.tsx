@@ -2,10 +2,12 @@ import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Toaster, toast } from "sonner";
-import { getMyAccount, cancelMyBooking, createPurchaseRequest } from "@/lib/account.functions";
+import { getMyAccount, cancelMyBooking, createPurchaseRequest, requestTrialUpgrade } from "@/lib/account.functions";
 import { COURSE_META, type CourseType } from "@/lib/schedule";
 import { supabase } from "@/integrations/supabase/client";
 import { useState } from "react";
+import wechatPayQr from "@/assets/wechat-pay-qr.asset.json";
+
 
 export const Route = createFileRoute("/_authenticated/account")({
   component: AccountPage,
@@ -15,8 +17,11 @@ function AccountPage() {
   const fetchAccount = useServerFn(getMyAccount);
   const cancelFn = useServerFn(cancelMyBooking);
   const purchaseFn = useServerFn(createPurchaseRequest);
+  const trialUpgradeFn = useServerFn(requestTrialUpgrade);
   const qc = useQueryClient();
   const navigate = useNavigate();
+  const [trialOpen, setTrialOpen] = useState<null | "group" | "cardio">(null);
+
 
   const { data, isLoading } = useQuery({
     queryKey: ["account"],
@@ -34,6 +39,13 @@ function AccountPage() {
     onSuccess: () => { toast.success("购买申请已提交，请联系教练完成支付。"); qc.invalidateQueries({ queryKey: ["account"] }); },
     onError: (e) => toast.error(e instanceof Error ? e.message : "提交失败"),
   });
+
+  const trialUpgradeMut = useMutation({
+    mutationFn: (ct: "group" | "cardio") => trialUpgradeFn({ data: { course_type: ct } }),
+    onSuccess: () => { toast.success("已提交！教练确认后将立即添加 1 节课次。"); setTrialOpen(null); qc.invalidateQueries({ queryKey: ["account"] }); },
+    onError: (e) => toast.error(e instanceof Error ? e.message : "提交失败"),
+  });
+
 
   const signOut = async () => {
     await qc.cancelQueries();
@@ -97,6 +109,20 @@ function AccountPage() {
           </div>
         </section>
 
+        <section className="border border-brand/40 bg-brand/5 p-5">
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <div>
+              <p className="font-mono text-[10px] uppercase tracking-[0.3em] text-brand">Welcome Offer · 1 元加购</p>
+              <h2 className="mt-1 font-display text-2xl font-bold italic">¥1 再加 1 节体验课</h2>
+              <p className="mt-1 text-sm text-muted-foreground">仅限新会员一次，可选 团操课 或 有氧 Cardio</p>
+            </div>
+            <div className="flex gap-2">
+              <button onClick={() => setTrialOpen("group")} className="border border-brand bg-brand px-4 py-2 font-mono text-[10px] uppercase tracking-widest text-brand-foreground transition-colors hover:bg-foreground">+1 团操课</button>
+              <button onClick={() => setTrialOpen("cardio")} className="border border-brand px-4 py-2 font-mono text-[10px] uppercase tracking-widest text-brand transition-colors hover:bg-brand hover:text-brand-foreground">+1 Cardio</button>
+            </div>
+          </div>
+        </section>
+
         <section>
           <div className="mb-4 flex items-center justify-between">
             <h2 className="font-mono text-[11px] uppercase tracking-[0.3em] text-muted-foreground">购买课程 / Purchase</h2>
@@ -108,6 +134,7 @@ function AccountPage() {
             ))}
           </div>
         </section>
+
 
         <section>
           <h2 className="mb-4 font-mono text-[11px] uppercase tracking-[0.3em] text-muted-foreground">我的预约 · 即将到来</h2>
@@ -131,9 +158,33 @@ function AccountPage() {
           </section>
         )}
       </main>
+
+      {trialOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 p-4" onClick={() => !trialUpgradeMut.isPending && setTrialOpen(null)}>
+          <div className="w-full max-w-sm border border-white/10 bg-card p-6" onClick={(e) => e.stopPropagation()}>
+            <p className="font-mono text-[10px] uppercase tracking-[0.3em] text-brand">Scan to Pay · ¥1</p>
+            <h3 className="mt-1 font-display text-2xl font-bold italic">{trialOpen === "group" ? "团操课" : "Cardio 有氧"} · +1 节</h3>
+            <p className="mt-1 text-xs text-muted-foreground">微信扫码支付 1 元后，点击下方按钮提交，教练核对后将立即添加 1 节课次。</p>
+            <div className="mt-4 flex justify-center bg-white p-4">
+              <img src={wechatPayQr.url} alt="微信支付收款码" className="h-56 w-auto object-contain" />
+            </div>
+            <button
+              disabled={trialUpgradeMut.isPending}
+              onClick={() => trialUpgradeMut.mutate(trialOpen)}
+              className="mt-4 w-full bg-brand py-3 font-mono text-[11px] uppercase tracking-widest text-brand-foreground transition-colors hover:bg-foreground disabled:opacity-50"
+            >
+              {trialUpgradeMut.isPending ? "提交中…" : "我已支付 · 提交申请"}
+            </button>
+            <button onClick={() => setTrialOpen(null)} disabled={trialUpgradeMut.isPending} className="mt-2 w-full py-2 font-mono text-[10px] uppercase tracking-widest text-muted-foreground hover:text-brand">
+              取消
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
+
 
 function BookingRow({ booking, canCancel, onCancel }: { booking: { id: string; slot_date: string; slot_hour: number; course_type: string; is_trial: boolean }; canCancel?: boolean; onCancel?: () => void }) {
   const meta = COURSE_META[booking.course_type as CourseType];
