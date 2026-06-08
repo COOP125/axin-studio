@@ -17,8 +17,11 @@ function AccountPage() {
   const fetchAccount = useServerFn(getMyAccount);
   const cancelFn = useServerFn(cancelMyBooking);
   const purchaseFn = useServerFn(createPurchaseRequest);
+  const trialUpgradeFn = useServerFn(requestTrialUpgrade);
   const qc = useQueryClient();
   const navigate = useNavigate();
+  const [trialOpen, setTrialOpen] = useState<null | "group" | "cardio">(null);
+
 
   const { data, isLoading } = useQuery({
     queryKey: ["account"],
