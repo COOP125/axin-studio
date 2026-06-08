@@ -35,6 +35,23 @@ export const getMyAccount = createServerFn({ method: "GET" })
     };
   });
 
+const UpdateProfileSchema = z.object({
+  nickname: z.string().trim().min(1, "请输入昵称").max(20, "昵称不超过20个字"),
+});
+
+export const updateMyProfile = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((data: { nickname: string }) => UpdateProfileSchema.parse(data))
+  .handler(async ({ data, context }) => {
+    const { supabase, userId } = context;
+    const { error } = await supabase
+      .from("profiles")
+      .update({ nickname: data.nickname, display_name: data.nickname })
+      .eq("user_id", userId);
+    if (error) throw new Error(error.message);
+    return { ok: true as const };
+  });
+
 export const createPurchaseRequest = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((data: { course_type: string; quantity: number; unit_price: number; note?: string }) =>
