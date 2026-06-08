@@ -2,7 +2,7 @@ import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Toaster, toast } from "sonner";
-import { getMyAccount, cancelMyBooking, createPurchaseRequest, requestTrialUpgrade } from "@/lib/account.functions";
+import { getMyAccount, cancelMyBooking, createPurchaseRequest, requestTrialUpgrade, updateMyProfile } from "@/lib/account.functions";
 import { COURSE_META, type CourseType } from "@/lib/schedule";
 import { supabase } from "@/integrations/supabase/client";
 import { useState } from "react";
@@ -19,9 +19,12 @@ function AccountPage() {
   const cancelFn = useServerFn(cancelMyBooking);
   const purchaseFn = useServerFn(createPurchaseRequest);
   const trialUpgradeFn = useServerFn(requestTrialUpgrade);
+  const updateProfileFn = useServerFn(updateMyProfile);
   const qc = useQueryClient();
   const navigate = useNavigate();
   const [trialOpen, setTrialOpen] = useState<null | "group" | "cardio">(null);
+  const [editingName, setEditingName] = useState(false);
+  const [nameDraft, setNameDraft] = useState("");
 
 
   const { data, isLoading } = useQuery({
@@ -52,6 +55,12 @@ function AccountPage() {
     onError: (e) => toast.error(e instanceof Error ? e.message : "提交失败"),
   });
 
+
+  const updateNameMut = useMutation({
+    mutationFn: (nickname: string) => updateProfileFn({ data: { nickname } }),
+    onSuccess: () => { toast.success("昵称已更新"); setEditingName(false); qc.invalidateQueries({ queryKey: ["account"] }); },
+    onError: (e) => toast.error(e instanceof Error ? e.message : "更新失败"),
+  });
 
   const signOut = async () => {
     await qc.cancelQueries();
