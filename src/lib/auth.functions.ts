@@ -214,5 +214,13 @@ export const coachSignIn = createServerFn({ method: "POST" })
       .from("user_roles")
       .upsert({ user_id: userId, role: "admin" }, { onConflict: "user_id,role" });
 
+    // Ensure profile row with has_password=true so the固定账号不会被强制设密码
+    await supabaseAdmin
+      .from("profiles")
+      .upsert(
+        { user_id: userId, phone: "admin", display_name: "AXI Studio 管理员", has_password: true },
+        { onConflict: "user_id" },
+      );
+
     return { email: COACH_EMAIL, password: COACH_PASSWORD };
   });

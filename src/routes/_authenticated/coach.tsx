@@ -1,9 +1,10 @@
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
 import { useQuery } from "@tanstack/react-query";
-import { useState } from "react";
-import { Toaster } from "sonner";
+import { useState, useEffect } from "react";
+import { Toaster, toast } from "sonner";
 import { getCoachDashboard, getCoachMembers } from "@/lib/coach.functions";
+import { getMyCoachProfile, updateMyCoachProfile, uploadCoachAvatar } from "@/lib/coach-profile.functions";
 import { COURSE_META, type CourseType } from "@/lib/schedule";
 import { supabase } from "@/integrations/supabase/client";
 import { useQueryClient } from "@tanstack/react-query";
@@ -12,7 +13,7 @@ export const Route = createFileRoute("/_authenticated/coach")({
   component: CoachPage,
 });
 
-type Tab = "today" | "stats" | "members";
+type Tab = "today" | "stats" | "members" | "profile";
 
 function CoachPage() {
   const [tab, setTab] = useState<Tab>("today");
@@ -47,13 +48,13 @@ function CoachPage() {
 
       <div className="border-b border-hairline px-6 md:px-10">
         <div className="mx-auto flex max-w-7xl gap-6">
-          {(["today", "stats", "members"] as Tab[]).map((t) => (
+          {(["today", "stats", "members", "profile"] as Tab[]).map((t) => (
             <button
               key={t}
               onClick={() => setTab(t)}
               className={"-mb-px border-b-2 px-1 py-4 font-mono text-[11px] uppercase tracking-[0.25em] transition-colors " + (tab === t ? "border-brand text-brand" : "border-transparent text-muted-foreground hover:text-foreground")}
             >
-              {t === "today" ? "今日课表" : t === "stats" ? "数据统计" : "会员名册"}
+              {t === "today" ? "今日课表" : t === "stats" ? "数据统计" : t === "members" ? "会员名册" : "我的资料"}
             </button>
           ))}
         </div>
@@ -63,7 +64,95 @@ function CoachPage() {
         {tab === "today" && <TodayTab />}
         {tab === "stats" && <StatsTab />}
         {tab === "members" && <MembersTab />}
+        {tab === "profile" && <ProfileTab />}
       </main>
+    </div>
+  );
+}
+
+function ProfileTab() {
+  const getFn = useServerFn(getMyCoachProfile);
+  const updateFn = useServerFn(updateMyCoachProfile);
+  const uploadFn = useServerFn(uploadCoachAvatar);
+  const qc = useQueryClient();
+  const { data, isLoading, error } = useQuery({ queryKey: ["coach", "my-profile"], queryFn: () => getFn(), retry: false });
+  const [nickname, setNickname] = useState("");
+  const [bio, setBio] = useState("");
+  const [specialties, setSpecialties] = useState<CourseType[]>([]);
+  const [avatarUrl, setAvatarUrl] = useState<string | null>(null);
+  const [saving, setSaving] = useState(false);
+
+  useEffect(() => {
+    if (!data) return;
+    setNickname(data.nickname ?? data.display_name ?? "");
+    setBio(data.bio ?? "");
+    setSpecialties((data.specialties ?? []) as CourseType[]);
+    setAvatarUrl(data.avatar_signed_url ?? null);
+  }, [data]);
+
+  const onPickFile = (file: File | null) => {
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = async () => {
+      try {
+        const res = await uploadFn({ data: { dataUrl: reader.result as string } });
+        setAvatarUrl(res.signedUrl);
+        toast.success("头像已更新");
+        qc.invalidateQueries({ queryKey: ["coach", "my-profile"] });
+      } catch (e) {
+        toast.error(e instanceof Error ? e.message : "上传失败");
+      }
+    };
+    reader.readAsDataURL(file);
+  };
+
+  const onSave = async () => {
+    if (!nickname.trim()) { toast.error("请输入姓名"); return; }
+    setSaving(true);
+    try {
+      await updateFn({ data: { nickname: nickname.trim(), bio, specialties } });
+      toast.success("已保存");
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "保存失败");
+    } finally { setSaving(false); }
+  };
+
+  if (isLoading) return <p className="text-muted-foreground">加载中…</p>;
+  if (error) return <ErrorBanner error={error} />;
+
+  return (
+    <div className="max-w-xl space-y-6">
+      <div className="flex items-center gap-5">
+        <div className="size-24 overflow-hidden rounded-full border border-white/10 bg-card">
+          {avatarUrl ? <img src={avatarUrl} alt="" className="size-full object-cover" /> : <div className="flex size-full items-center justify-center text-xs text-muted-foreground">无头像</div>}
+        </div>
+        <label className="cursor-pointer border border-brand/40 px-4 py-2 font-mono text-[10px] uppercase tracking-widest text-brand hover:bg-brand/10">
+          上传头像
+          <input type="file" accept="image/*" className="hidden" onChange={(e) => onPickFile(e.target.files?.[0] ?? null)} />
+        </label>
+      </div>
+      <label className="block">
+        <span className="mb-1.5 block font-mono text-[10px] uppercase tracking-widest text-muted-foreground">姓名 / 昵称</span>
+        <input value={nickname} onChange={(e) => setNickname(e.target.value)} className="input" />
+      </label>
+      <label className="block">
+        <span className="mb-1.5 block font-mono text-[10px] uppercase tracking-widest text-muted-foreground">简介</span>
+        <textarea value={bio} onChange={(e) => setBio(e.target.value)} rows={4} className="input" placeholder="比如：8 年训练经验，擅长力量与体态调整..." />
+      </label>
+      <div>
+        <span className="mb-2 block font-mono text-[10px] uppercase tracking-widest text-muted-foreground">擅长课种</span>
+        <div className="flex flex-wrap gap-2">
+          {(Object.keys(COURSE_META) as CourseType[]).map((ct) => {
+            const active = specialties.includes(ct);
+            return (
+              <button key={ct} onClick={() => setSpecialties((s) => active ? s.filter((x) => x !== ct) : [...s, ct])} className={"border px-3 py-1.5 text-xs " + (active ? "border-brand bg-brand text-brand-foreground" : "border-white/10 text-muted-foreground hover:text-foreground")}>
+                {COURSE_META[ct].label}
+              </button>
+            );
+          })}
+        </div>
+      </div>
+      <button onClick={onSave} disabled={saving} className="bg-brand px-5 py-2.5 font-mono text-xs uppercase tracking-widest text-brand-foreground hover:bg-foreground disabled:opacity-50">{saving ? "保存中…" : "保存资料"}</button>
     </div>
   );
 }

@@ -1,7 +1,7 @@
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import { Toaster, toast } from "sonner";
 import {
   adminListMembers, adminAdjustCredits, adminListBookings, adminCancelBooking,
@@ -9,14 +9,16 @@ import {
   adminListCoaches, adminAddCoachByPhone, adminRemoveCoach,
 } from "@/lib/admin.functions";
 import { claimAdminIfUnclaimed } from "@/lib/auth.functions";
-import { COURSE_META, formatDateISO, type CourseType } from "@/lib/schedule";
+import { adminListSchedules, adminUpsertSchedule, adminDeleteSchedule } from "@/lib/schedule-admin.functions";
+import { adminGetCoachProfile, adminUpdateCoachProfile, uploadCoachAvatar } from "@/lib/coach-profile.functions";
+import { COURSE_META, formatDateISO, WEEKDAY_LABELS, type CourseType } from "@/lib/schedule";
 import { supabase } from "@/integrations/supabase/client";
 
 export const Route = createFileRoute("/_authenticated/admin")({
   component: AdminPage,
 });
 
-type Tab = "members" | "coaches" | "bookings" | "purchases";
+type Tab = "members" | "coaches" | "schedule" | "bookings" | "purchases";
 
 function AdminPage() {
   const [tab, setTab] = useState<Tab>("members");
@@ -60,13 +62,13 @@ function AdminPage() {
 
       <div className="border-b border-hairline px-6 md:px-10">
         <div className="mx-auto flex max-w-7xl gap-6">
-          {(["members", "coaches", "bookings", "purchases"] as Tab[]).map((t) => (
+          {(["members", "coaches", "schedule", "bookings", "purchases"] as Tab[]).map((t) => (
             <button
               key={t}
               onClick={() => setTab(t)}
               className={"-mb-px border-b-2 px-1 py-4 font-mono text-[11px] uppercase tracking-[0.25em] transition-colors " + (tab === t ? "border-brand text-brand" : "border-transparent text-muted-foreground hover:text-foreground")}
             >
-              {t === "members" ? "会员管理" : t === "coaches" ? "教练管理" : t === "bookings" ? "预约总览" : "购买申请"}
+              {t === "members" ? "会员管理" : t === "coaches" ? "教练管理" : t === "schedule" ? "课表编辑" : t === "bookings" ? "预约总览" : "购买申请"}
             </button>
           ))}
         </div>
@@ -75,6 +77,7 @@ function AdminPage() {
       <main className="mx-auto max-w-7xl px-6 py-10 md:px-10">
         {tab === "members" && <MembersTab />}
         {tab === "coaches" && <CoachesTab />}
+        {tab === "schedule" && <ScheduleTab />}
         {tab === "bookings" && <BookingsTab />}
         {tab === "purchases" && <PurchasesTab />}
       </main>
@@ -261,6 +264,7 @@ function CoachesTab() {
   const removeFn = useServerFn(adminRemoveCoach);
   const qc = useQueryClient();
   const [phone, setPhone] = useState("");
+  const [editId, setEditId] = useState<string | null>(null);
 
   const { data, isLoading, error } = useQuery({ queryKey: ["admin", "coaches"], queryFn: () => listFn(), retry: false });
 
@@ -314,17 +318,321 @@ function CoachesTab() {
                   <p className="text-sm font-semibold">{c.name}</p>
                   <p className="font-mono text-xs text-muted-foreground">{c.phone}</p>
                 </div>
-                <button
-                  onClick={() => { if (confirm(`确认移除 ${c.name} 的教练身份？`)) removeMut.mutate(c.user_id); }}
-                  className="border border-white/10 px-3 py-1.5 font-mono text-[10px] uppercase tracking-widest text-muted-foreground hover:bg-white/5 hover:text-brand"
-                >
-                  移除
-                </button>
+                <div className="flex gap-2">
+                  <button
+                    onClick={() => setEditId(c.user_id)}
+                    className="border border-brand/40 px-3 py-1.5 font-mono text-[10px] uppercase tracking-widest text-brand hover:bg-brand/10"
+                  >
+                    编辑资料
+                  </button>
+                  <button
+                    onClick={() => { if (confirm(`确认移除 ${c.name} 的教练身份？`)) removeMut.mutate(c.user_id); }}
+                    className="border border-white/10 px-3 py-1.5 font-mono text-[10px] uppercase tracking-widest text-muted-foreground hover:bg-white/5 hover:text-brand"
+                  >
+                    移除
+                  </button>
+                </div>
               </li>
             ))}
           </ul>
         )}
       </section>
+
+      {editId && <CoachEditDialog userId={editId} onClose={() => setEditId(null)} />}
+    </div>
+  );
+}
+
+function CoachEditDialog({ userId, onClose }: { userId: string; onClose: () => void }) {
+  const getFn = useServerFn(adminGetCoachProfile);
+  const updateFn = useServerFn(adminUpdateCoachProfile);
+  const uploadFn = useServerFn(uploadCoachAvatar);
+  const qc = useQueryClient();
+
+  const { data, isLoading } = useQuery({
+    queryKey: ["admin", "coach-profile", userId],
+    queryFn: () => getFn({ data: { user_id: userId } }),
+    retry: false,
+  });
+
+  const [nickname, setNickname] = useState("");
+  const [bio, setBio] = useState("");
+  const [specialties, setSpecialties] = useState<CourseType[]>([]);
+  const [avatarUrl, setAvatarUrl] = useState<string | null>(null);
+  const [saving, setSaving] = useState(false);
+
+  useEffect(() => {
+    if (!data) return;
+    setNickname(data.nickname ?? data.display_name ?? "");
+    setBio(data.bio ?? "");
+    setSpecialties((data.specialties ?? []) as CourseType[]);
+    setAvatarUrl(data.avatar_signed_url ?? null);
+  }, [data]);
+
+  const onPickFile = (file: File | null) => {
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = async () => {
+      try {
+        const res = await uploadFn({ data: { dataUrl: reader.result as string, target_user_id: userId } });
+        setAvatarUrl(res.signedUrl);
+        toast.success("头像已更新");
+        qc.invalidateQueries({ queryKey: ["admin", "coach-profile", userId] });
+      } catch (e) {
+        toast.error(e instanceof Error ? e.message : "上传失败");
+      }
+    };
+    reader.readAsDataURL(file);
+  };
+
+  const onSave = async () => {
+    if (!nickname.trim()) { toast.error("请输入姓名"); return; }
+    setSaving(true);
+    try {
+      await updateFn({ data: { user_id: userId, nickname: nickname.trim(), bio, specialties } });
+      toast.success("已保存");
+      qc.invalidateQueries({ queryKey: ["admin", "coaches"] });
+      onClose();
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "保存失败");
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4" onClick={onClose}>
+      <div className="w-full max-w-lg border border-white/10 bg-background p-6" onClick={(e) => e.stopPropagation()}>
+        <div className="mb-4 flex items-center justify-between">
+          <h3 className="font-display text-xl font-bold italic">编辑教练资料</h3>
+          <button onClick={onClose} className="font-mono text-xs text-muted-foreground hover:text-brand">✕</button>
+        </div>
+        {isLoading ? <p className="text-muted-foreground">加载中…</p> : (
+          <div className="space-y-5">
+            <div className="flex items-center gap-4">
+              <div className="size-20 overflow-hidden rounded-full border border-white/10 bg-card">
+                {avatarUrl ? <img src={avatarUrl} alt="" className="size-full object-cover" /> : <div className="flex size-full items-center justify-center text-xs text-muted-foreground">无头像</div>}
+              </div>
+              <label className="cursor-pointer border border-brand/40 px-3 py-2 font-mono text-[10px] uppercase tracking-widest text-brand hover:bg-brand/10">
+                上传头像
+                <input type="file" accept="image/*" className="hidden" onChange={(e) => onPickFile(e.target.files?.[0] ?? null)} />
+              </label>
+            </div>
+            <label className="block">
+              <span className="mb-1.5 block font-mono text-[10px] uppercase tracking-widest text-muted-foreground">姓名 / 昵称</span>
+              <input value={nickname} onChange={(e) => setNickname(e.target.value)} className="input" />
+            </label>
+            <label className="block">
+              <span className="mb-1.5 block font-mono text-[10px] uppercase tracking-widest text-muted-foreground">简介</span>
+              <textarea value={bio} onChange={(e) => setBio(e.target.value)} rows={4} className="input" placeholder="比如：8 年训练经验，擅长力量与体态调整..." />
+            </label>
+            <div>
+              <span className="mb-2 block font-mono text-[10px] uppercase tracking-widest text-muted-foreground">擅长课种</span>
+              <div className="flex flex-wrap gap-2">
+                {(Object.keys(COURSE_META) as CourseType[]).map((ct) => {
+                  const active = specialties.includes(ct);
+                  return (
+                    <button
+                      key={ct}
+                      onClick={() => setSpecialties((s) => active ? s.filter((x) => x !== ct) : [...s, ct])}
+                      className={"border px-3 py-1.5 text-xs " + (active ? "border-brand bg-brand text-brand-foreground" : "border-white/10 text-muted-foreground hover:text-foreground")}
+                    >
+                      {COURSE_META[ct].label}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+            <div className="flex justify-end gap-3 pt-2">
+              <button onClick={onClose} className="border border-white/10 px-4 py-2 font-mono text-xs text-muted-foreground hover:bg-white/5">取消</button>
+              <button onClick={onSave} disabled={saving} className="bg-brand px-4 py-2 font-mono text-xs uppercase tracking-widest text-brand-foreground hover:bg-foreground disabled:opacity-50">{saving ? "保存中…" : "保存"}</button>
+            </div>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+const SCHEDULE_HOURS = [10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20];
+
+function ScheduleTab() {
+  const listFn = useServerFn(adminListSchedules);
+  const coachesFn = useServerFn(adminListCoaches);
+  const upsertFn = useServerFn(adminUpsertSchedule);
+  const deleteFn = useServerFn(adminDeleteSchedule);
+  const qc = useQueryClient();
+  const [editing, setEditing] = useState<{ weekday: number; hour: number; existing: Schedule | null } | null>(null);
+
+  const { data: schedules, isLoading, error } = useQuery({
+    queryKey: ["admin", "schedules"],
+    queryFn: () => listFn(),
+    retry: false,
+  });
+  const { data: coaches } = useQuery({ queryKey: ["admin", "coaches"], queryFn: () => coachesFn(), retry: false });
+
+  const upsertMut = useMutation({
+    mutationFn: (v: Parameters<typeof upsertFn>[0]["data"]) => upsertFn({ data: v }),
+    onSuccess: () => { toast.success("已保存"); qc.invalidateQueries({ queryKey: ["admin", "schedules"] }); setEditing(null); },
+    onError: (e) => toast.error(e instanceof Error ? e.message : "保存失败"),
+  });
+  const deleteMut = useMutation({
+    mutationFn: (id: string) => deleteFn({ data: { id } }),
+    onSuccess: () => { toast.success("已删除"); qc.invalidateQueries({ queryKey: ["admin", "schedules"] }); },
+    onError: (e) => toast.error(e instanceof Error ? e.message : "删除失败"),
+  });
+
+  if (error) return <ErrorBanner error={error} />;
+  if (isLoading) return <p className="text-muted-foreground">加载中…</p>;
+
+  // Schedule type defined at module scope
+  const byCell = new Map<string, Schedule[]>();
+  (schedules ?? []).forEach((s) => {
+    const k = `${s.weekday}-${s.slot_hour}`;
+    const arr = byCell.get(k) ?? [];
+    arr.push(s);
+    byCell.set(k, arr);
+  });
+
+  return (
+    <div className="space-y-4">
+      <p className="text-sm text-muted-foreground">点击任意格子可新增、编辑或删除该时段的课程安排（课种 + 教练）。同一时段可安排多个课程（不同教练）。</p>
+      <div className="overflow-x-auto">
+        <table className="min-w-[900px] border-collapse border border-white/10 text-xs">
+          <thead>
+            <tr className="bg-card">
+              <th className="border border-white/10 p-2 font-mono text-[10px] uppercase tracking-widest text-muted-foreground">时段</th>
+              {WEEKDAY_LABELS.map((lbl, i) => (
+                <th key={i} className="border border-white/10 p-2 font-mono text-[10px] uppercase tracking-widest text-muted-foreground">{lbl}</th>
+              ))}
+            </tr>
+          </thead>
+          <tbody>
+            {SCHEDULE_HOURS.map((h) => (
+              <tr key={h}>
+                <td className="border border-white/10 bg-card p-2 text-center font-mono text-brand tabular-nums">{String(h).padStart(2,"0")}:00</td>
+                {WEEKDAY_LABELS.map((_, weekday) => {
+                  const entries = byCell.get(`${weekday}-${h}`) ?? [];
+                  return (
+                    <td key={weekday} className="border border-white/10 p-1.5 align-top hover:bg-white/[0.02]">
+                      <button onClick={() => setEditing({ weekday, hour: h, existing: null })} className="block w-full text-left">
+                        {entries.length === 0 ? (
+                          <span className="block py-3 text-center text-muted-foreground/40">+</span>
+                        ) : (
+                          <div className="space-y-1">
+                            {entries.map((e) => (
+                              <div
+                                key={e.id}
+                                onClick={(ev) => { ev.stopPropagation(); setEditing({ weekday, hour: h, existing: e }); }}
+                                className={"cursor-pointer border px-2 py-1.5 " + (e.is_active ? "border-brand/40 bg-brand/5" : "border-white/10 bg-white/[0.02] opacity-60")}
+                              >
+                                <p className="font-semibold">{COURSE_META[e.course_type as CourseType].label}</p>
+                                <p className="font-mono text-[10px] text-muted-foreground">{e.coach_name ?? "未指派"}{!e.is_active && " · 停用"}</p>
+                              </div>
+                            ))}
+                          </div>
+                        )}
+                      </button>
+                    </td>
+                  );
+                })}
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+
+      {editing && (
+        <ScheduleEditDialog
+          weekday={editing.weekday}
+          hour={editing.hour}
+          existing={editing.existing}
+          coaches={coaches ?? []}
+          onClose={() => setEditing(null)}
+          onSave={(v) => upsertMut.mutate(v)}
+          onDelete={(id) => { if (confirm("确认删除该课表项？")) deleteMut.mutate(id); }}
+        />
+      )}
+    </div>
+  );
+}
+
+type Schedule = {
+  id: string;
+  weekday: number;
+  slot_hour: number;
+  course_type: CourseType;
+  coach_id: string | null;
+  is_active: boolean;
+  coach_name: string | null;
+};
+
+function ScheduleEditDialog({
+  weekday, hour, existing, coaches, onClose, onSave, onDelete,
+}: {
+  weekday: number;
+  hour: number;
+  existing: Schedule | null;
+  coaches: { user_id: string; name: string }[];
+  onClose: () => void;
+  onSave: (v: { id?: string; weekday: number; slot_hour: number; course_type: CourseType; coach_id: string | null; is_active: boolean }) => void;
+  onDelete: (id: string) => void;
+}) {
+  const [courseType, setCourseType] = useState<CourseType>(existing?.course_type ?? "private");
+  const [coachId, setCoachId] = useState<string | null>(existing?.coach_id ?? null);
+  const [isActive, setIsActive] = useState<boolean>(existing?.is_active ?? true);
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4" onClick={onClose}>
+      <div className="w-full max-w-md border border-white/10 bg-background p-6" onClick={(e) => e.stopPropagation()}>
+        <div className="mb-4">
+          <p className="font-mono text-[10px] uppercase tracking-[0.3em] text-brand">{WEEKDAY_LABELS[weekday]} · {String(hour).padStart(2,"0")}:00</p>
+          <h3 className="mt-1 font-display text-xl font-bold italic">{existing ? "编辑课程" : "新增课程"}</h3>
+        </div>
+
+        <div className="space-y-4">
+          <label className="block">
+            <span className="mb-1.5 block font-mono text-[10px] uppercase tracking-widest text-muted-foreground">课种</span>
+            <select value={courseType} onChange={(e) => setCourseType(e.target.value as CourseType)} className="input">
+              {(Object.keys(COURSE_META) as CourseType[]).map((ct) => (
+                <option key={ct} value={ct}>{COURSE_META[ct].label}</option>
+              ))}
+            </select>
+          </label>
+
+          <label className="block">
+            <span className="mb-1.5 block font-mono text-[10px] uppercase tracking-widest text-muted-foreground">教练</span>
+            <select value={coachId ?? ""} onChange={(e) => setCoachId(e.target.value || null)} className="input">
+              <option value="">— 未指派 —</option>
+              {coaches.map((c) => <option key={c.user_id} value={c.user_id}>{c.name}</option>)}
+            </select>
+          </label>
+
+          <label className="flex items-center gap-2 text-sm">
+            <input type="checkbox" checked={isActive} onChange={(e) => setIsActive(e.target.checked)} />
+            <span>启用（关闭后会员看不到此时段）</span>
+          </label>
+        </div>
+
+        <div className="mt-6 flex justify-between">
+          <div>
+            {existing && (
+              <button onClick={() => onDelete(existing.id)} className="border border-red-500/40 px-3 py-2 font-mono text-[10px] uppercase tracking-widest text-red-400 hover:bg-red-500/10">
+                删除
+              </button>
+            )}
+          </div>
+          <div className="flex gap-2">
+            <button onClick={onClose} className="border border-white/10 px-4 py-2 font-mono text-xs text-muted-foreground hover:bg-white/5">取消</button>
+            <button
+              onClick={() => onSave({ id: existing?.id, weekday, slot_hour: hour, course_type: courseType, coach_id: coachId, is_active: isActive })}
+              className="bg-brand px-4 py-2 font-mono text-xs uppercase tracking-widest text-brand-foreground hover:bg-foreground"
+            >
+              保存
+            </button>
+          </div>
+        </div>
+      </div>
     </div>
   );
 }
