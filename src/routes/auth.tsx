@@ -150,10 +150,10 @@ function MemberLoginForm({ onDone }: { onDone: () => void }) {
           <button
             type="button"
             onClick={onSendCode}
-            disabled={cooldown > 0}
+            disabled={cooldown > 0 || sending}
             className="border border-brand/40 px-4 text-xs font-bold uppercase tracking-widest text-brand transition-colors hover:bg-brand hover:text-brand-foreground disabled:opacity-40"
           >
-            {cooldown > 0 ? `${cooldown}s` : "获取验证码"}
+            {sending ? "发送中…" : cooldown > 0 ? `${cooldown}s` : "获取验证码"}
           </button>
         </div>
       </label>
