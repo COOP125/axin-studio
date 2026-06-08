@@ -8,44 +8,66 @@ const phoneToEmail = (phone: string) => `${phone}@phone.axinstudio.local`;
 const RequestOtpSchema = z.object({ phone: PhoneSchema });
 
 /**
- * Generate and store a 6-digit verification code for the phone.
- * DEV MODE: returns the code in the response so the UI can show it via toast.
- * In production, replace with a real SMS provider call (Aliyun/Tencent SMS) and
- * stop returning `devCode`.
+ * Send an SMS verification code via Aliyun 短信认证服务 (Dypnsapi).
+ * Aliyun generates and validates the code itself — we only persist an OutId
+ * to correlate verification + rate-limit subsequent attempts.
  */
 export const requestOtp = createServerFn({ method: "POST" })
   .inputValidator((data: { phone: string }) => RequestOtpSchema.parse(data))
   .handler(async ({ data }) => {
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
-    const code = String(Math.floor(100000 + Math.random() * 900000));
-    const expiresAt = new Date(Date.now() + 5 * 60 * 1000).toISOString();
+    const { sendSmsVerifyCode, readSmsConfig } = await import("@/lib/aliyun-sms.server");
 
+    // Per-phone rate limit: at most 1 send every 60s.
+    const { data: recent } = await supabaseAdmin
+      .from("phone_otp")
+      .select("created_at")
+      .eq("phone", data.phone)
+      .order("created_at", { ascending: false })
+      .limit(1);
+    if (recent?.[0] && Date.now() - new Date(recent[0].created_at).getTime() < 60_000) {
+      throw new Error("发送过于频繁，请稍后再试");
+    }
+
+    const outId = crypto.randomUUID();
+    const { signName, templateCode } = readSmsConfig();
+
+    await sendSmsVerifyCode({
+      phoneNumber: data.phone,
+      signName,
+      templateCode,
+      outId,
+      validTimeSeconds: 300,
+    });
+
+    const expiresAt = new Date(Date.now() + 5 * 60 * 1000).toISOString();
+    // We store the OutId in `code` (column re-purposed) so verifyOtp can pass it back.
     const { error } = await supabaseAdmin.from("phone_otp").insert({
       phone: data.phone,
-      code,
+      code: outId,
       expires_at: expiresAt,
     });
-    if (error) throw new Error("验证码生成失败：" + error.message);
+    if (error) throw new Error("验证码记录失败：" + error.message);
 
-    // TODO: replace with SMS provider in production
-    return { ok: true as const, devCode: code };
+    return { ok: true as const };
   });
 
 const VerifyOtpSchema = z.object({
   phone: PhoneSchema,
-  code: z.string().regex(/^\d{6}$/, "验证码为 6 位数字"),
+  code: z.string().regex(/^\d{4,6}$/, "请输入收到的验证码"),
 });
 
 /**
- * Verify OTP, get-or-create the auth user, and return a magic-link token hash
- * the client uses to establish a session via `supabase.auth.verifyOtp`.
+ * Verify OTP via Aliyun CheckSmsVerifyCode, get-or-create the auth user, and
+ * return a magic-link token hash the client uses to establish a session.
  */
 export const verifyOtp = createServerFn({ method: "POST" })
   .inputValidator((data: { phone: string; code: string }) => VerifyOtpSchema.parse(data))
   .handler(async ({ data }) => {
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    const { checkSmsVerifyCode } = await import("@/lib/aliyun-sms.server");
 
-    // Look up the most recent unconsumed OTP for this phone
+    // Look up most recent unconsumed OTP record for OutId + attempts.
     const { data: rows, error: fetchErr } = await supabaseAdmin
       .from("phone_otp")
       .select("*")
@@ -56,13 +78,17 @@ export const verifyOtp = createServerFn({ method: "POST" })
     if (fetchErr) throw new Error(fetchErr.message);
     const otp = rows?.[0];
     if (!otp) throw new Error("验证码不存在或已过期，请重新获取");
-
     if (new Date(otp.expires_at).getTime() < Date.now()) {
       throw new Error("验证码已过期，请重新获取");
     }
     if (otp.attempts >= 5) throw new Error("尝试次数过多，请重新获取");
 
-    if (otp.code !== data.code) {
+    const pass = await checkSmsVerifyCode({
+      phoneNumber: data.phone,
+      verifyCode: data.code,
+      outId: otp.code, // stored OutId
+    });
+    if (!pass) {
       await supabaseAdmin.from("phone_otp").update({ attempts: otp.attempts + 1 }).eq("id", otp.id);
       throw new Error("验证码不正确");
     }
@@ -70,6 +96,7 @@ export const verifyOtp = createServerFn({ method: "POST" })
     await supabaseAdmin.from("phone_otp").update({ consumed_at: new Date().toISOString() }).eq("id", otp.id);
 
     const email = phoneToEmail(data.phone);
+
 
     // Get-or-create user. Email confirmation auto-true.
     const { data: created, error: createErr } = await supabaseAdmin.auth.admin.createUser({
