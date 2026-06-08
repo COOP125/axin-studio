@@ -40,6 +40,13 @@ function AccountPage() {
     onError: (e) => toast.error(e instanceof Error ? e.message : "提交失败"),
   });
 
+  const trialUpgradeMut = useMutation({
+    mutationFn: (ct: "group" | "cardio") => trialUpgradeFn({ data: { course_type: ct } }),
+    onSuccess: () => { toast.success("已提交！教练确认后将立即添加 1 节课次。"); setTrialOpen(null); qc.invalidateQueries({ queryKey: ["account"] }); },
+    onError: (e) => toast.error(e instanceof Error ? e.message : "提交失败"),
+  });
+
+
   const signOut = async () => {
     await qc.cancelQueries();
     qc.clear();
