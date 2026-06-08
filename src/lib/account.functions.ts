@@ -60,6 +60,35 @@ export const createPurchaseRequest = createServerFn({ method: "POST" })
     return { ok: true as const };
   });
 
+export const requestTrialUpgrade = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((data: { course_type: string }) =>
+    z.object({ course_type: z.enum(["group", "cardio"]) }).parse(data),
+  )
+  .handler(async ({ data, context }) => {
+    const { supabase, userId } = context;
+    // Each member is only allowed to use this 1元 trial top-up once total
+    const { data: existing, error: exErr } = await supabase
+      .from("purchase_requests")
+      .select("id, status")
+      .eq("user_id", userId)
+      .eq("unit_price", 1)
+      .in("status", ["pending", "approved"]);
+    if (exErr) throw new Error(exErr.message);
+    if ((existing ?? []).length > 0) throw new Error("您已使用过 1 元体验加购，每位会员仅限一次");
+
+    const { error } = await supabase.from("purchase_requests").insert({
+      user_id: userId,
+      course_type: data.course_type,
+      quantity: 1,
+      unit_price: 1,
+      note: "1元加购体验课",
+    });
+    if (error) throw new Error(error.message);
+    return { ok: true as const };
+  });
+
+
 export const cancelMyBooking = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((data: { id: string }) => z.object({ id: z.string().uuid() }).parse(data))
