@@ -264,6 +264,7 @@ function CoachesTab() {
   const removeFn = useServerFn(adminRemoveCoach);
   const qc = useQueryClient();
   const [phone, setPhone] = useState("");
+  const [editId, setEditId] = useState<string | null>(null);
 
   const { data, isLoading, error } = useQuery({ queryKey: ["admin", "coaches"], queryFn: () => listFn(), retry: false });
 
