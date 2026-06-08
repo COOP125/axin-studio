@@ -485,7 +485,7 @@ function ScheduleTab() {
   if (error) return <ErrorBanner error={error} />;
   if (isLoading) return <p className="text-muted-foreground">加载中…</p>;
 
-  type Schedule = NonNullable<typeof schedules>[number];
+  // Schedule type defined at module scope
   const byCell = new Map<string, Schedule[]>();
   (schedules ?? []).forEach((s) => {
     const k = `${s.weekday}-${s.slot_hour}`;
