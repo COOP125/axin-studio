@@ -77,14 +77,16 @@ interface SendSmsArgs {
   signName: string;
   templateCode: string;
   outId: string;
+  validTimeSeconds?: number;
 }
 
 export async function sendSmsVerifyCode(args: SendSmsArgs) {
+  const validMinutes = Math.max(1, Math.ceil((args.validTimeSeconds ?? 300) / 60));
   const body = await callDysmsapi("SendSms", {
     PhoneNumbers: args.phoneNumber,
     SignName: args.signName,
     TemplateCode: args.templateCode,
-    TemplateParam: JSON.stringify({ code: args.verifyCode }),
+    TemplateParam: JSON.stringify({ code: args.verifyCode, min: String(validMinutes) }),
     OutId: args.outId,
   });
   return { bizId: (body.BizId as string | undefined) ?? args.outId };
