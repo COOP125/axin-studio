@@ -278,6 +278,10 @@ export type Database = {
         Args: { ct: Database["public"]["Enums"]["course_type"] }
         Returns: number
       }
+      course_unit_price: {
+        Args: { ct: Database["public"]["Enums"]["course_type"] }
+        Returns: number
+      }
       get_slot_counts: {
         Args: { end_date: string; start_date: string }
         Returns: {
