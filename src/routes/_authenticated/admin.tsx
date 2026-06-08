@@ -1,7 +1,7 @@
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import { Toaster, toast } from "sonner";
 import {
   adminListMembers, adminAdjustCredits, adminListBookings, adminCancelBooking,
@@ -9,14 +9,16 @@ import {
   adminListCoaches, adminAddCoachByPhone, adminRemoveCoach,
 } from "@/lib/admin.functions";
 import { claimAdminIfUnclaimed } from "@/lib/auth.functions";
-import { COURSE_META, formatDateISO, type CourseType } from "@/lib/schedule";
+import { adminListSchedules, adminUpsertSchedule, adminDeleteSchedule } from "@/lib/schedule-admin.functions";
+import { adminGetCoachProfile, adminUpdateCoachProfile, uploadCoachAvatar } from "@/lib/coach-profile.functions";
+import { COURSE_META, formatDateISO, WEEKDAY_LABELS, type CourseType } from "@/lib/schedule";
 import { supabase } from "@/integrations/supabase/client";
 
 export const Route = createFileRoute("/_authenticated/admin")({
   component: AdminPage,
 });
 
-type Tab = "members" | "coaches" | "bookings" | "purchases";
+type Tab = "members" | "coaches" | "schedule" | "bookings" | "purchases";
 
 function AdminPage() {
   const [tab, setTab] = useState<Tab>("members");
