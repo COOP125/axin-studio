@@ -109,12 +109,6 @@ function AccountPage() {
           </div>
         </section>
 
-        <section>
-          <div className="mb-4 flex items-center justify-between">
-            <h2 className="font-mono text-[11px] uppercase tracking-[0.3em] text-muted-foreground">购买课程 / Purchase</h2>
-            <span className="font-mono text-[10px] text-muted-foreground">点击「申请购买」后教练会与您联系收款</span>
-          </div>
-          <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
         <section className="border border-brand/40 bg-brand/5 p-5">
           <div className="flex flex-wrap items-center justify-between gap-3">
             <div>
