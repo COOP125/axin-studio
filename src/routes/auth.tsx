@@ -76,6 +76,7 @@ function MemberLoginForm({ onDone }: { onDone: () => void }) {
   const [phone, setPhone] = useState("");
   const [code, setCode] = useState("");
   const [cooldown, setCooldown] = useState(0);
+  const [sending, setSending] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const requestFn = useServerFn(requestOtp);
   const verifyFn = useServerFn(verifyOtp);
@@ -87,15 +88,19 @@ function MemberLoginForm({ onDone }: { onDone: () => void }) {
   }, [cooldown]);
 
   const onSendCode = async () => {
+    if (sending || cooldown > 0) return;
     const normalized = phone.replace(/\D/g, "");
     if (!isChinaMobile(normalized)) { toast.error("请输入有效的中国大陆手机号"); return; }
+    setSending(true);
+    setCooldown(60); // 立即开始倒计时，防止重复点击
     try {
       await requestFn({ data: { phone: normalized } });
-      setCooldown(60);
       toast.success("验证码已发送，请查收短信");
-
     } catch (e) {
+      setCooldown(0); // 失败时允许重试
       toast.error(e instanceof Error ? e.message : "发送失败");
+    } finally {
+      setSending(false);
     }
   };
 
@@ -145,10 +150,10 @@ function MemberLoginForm({ onDone }: { onDone: () => void }) {
           <button
             type="button"
             onClick={onSendCode}
-            disabled={cooldown > 0}
+            disabled={cooldown > 0 || sending}
             className="border border-brand/40 px-4 text-xs font-bold uppercase tracking-widest text-brand transition-colors hover:bg-brand hover:text-brand-foreground disabled:opacity-40"
           >
-            {cooldown > 0 ? `${cooldown}s` : "获取验证码"}
+            {sending ? "发送中…" : cooldown > 0 ? `${cooldown}s` : "获取验证码"}
           </button>
         </div>
       </label>
