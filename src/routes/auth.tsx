@@ -89,9 +89,10 @@ function MemberLoginForm({ onDone }: { onDone: () => void }) {
   const onSendCode = async () => {
     if (!isChinaMobile(phone)) { toast.error("请输入有效的中国大陆手机号"); return; }
     try {
-      const res = await requestFn({ data: { phone } });
+      await requestFn({ data: { phone } });
       setCooldown(60);
-      toast.success(`验证码已发送 · 测试模式：${res.devCode}`, { duration: 10000 });
+      toast.success("验证码已发送，请查收短信");
+
     } catch (e) {
       toast.error(e instanceof Error ? e.message : "发送失败");
     }
