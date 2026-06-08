@@ -87,12 +87,11 @@ export const verifyOtp = createServerFn({ method: "POST" })
       const found = list?.users?.find((u) => u.email === email);
       if (!found) throw new Error("用户查询失败");
       userId = found.id;
-    } else {
-      // Newly-created → ensure profile row exists
-      await supabaseAdmin
-        .from("profiles")
-        .upsert({ user_id: userId, phone: data.phone, display_name: `会员-${data.phone.slice(-4)}` }, { onConflict: "user_id" });
     }
+    // Always ensure profile row exists (handles legacy users created before this logic)
+    await supabaseAdmin
+      .from("profiles")
+      .upsert({ user_id: userId, phone: data.phone, display_name: `会员-${data.phone.slice(-4)}` }, { onConflict: "user_id" });
 
     // Generate a magic-link the client will exchange for a session
     const { data: linkData, error: linkErr } = await supabaseAdmin.auth.admin.generateLink({
